@@ -1,6 +1,9 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import type { HabitWithStreak } from '@life-os/shared-types';
 import { HabitsService } from './habits.service';
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 @Component({
   selector: 'app-habits',
@@ -29,12 +32,36 @@ import { HabitsService } from './habits.service';
             >
               {{ h.checkedToday ? '✓' : h.icon }}
             </button>
-            <div class="flex-1">
+
+            <div class="min-w-0 flex-1">
               <div class="font-medium">{{ h.icon }} {{ h.name }}</div>
-              <div class="text-sm text-slate-400">
+              <div class="mt-1.5 flex items-center gap-1.5">
+                @for (done of h.weeklyChecks; track $index) {
+                  <span
+                    class="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-medium"
+                    [class.bg-emerald-600]="done"
+                    [class.text-white]="done"
+                    [class.bg-surface-800]="!done"
+                    [class.text-slate-500]="!done"
+                    [title]="weekdays[$index]"
+                  >
+                    {{ done ? '✓' : weekdays[$index][0] }}
+                  </span>
+                }
+                <span class="ml-1 text-xs text-slate-500">{{ weekCount(h) }}/7</span>
+              </div>
+              <div class="mt-1 text-xs text-slate-500">
                 🔥 {{ h.currentStreak }} day streak · best {{ h.longestStreak }}
               </div>
             </div>
+
+            <button
+              class="shrink-0 text-slate-500 transition hover:text-red-400"
+              title="Delete habit"
+              (click)="confirmRemove(h)"
+            >
+              🗑
+            </button>
           </div>
         } @empty {
           @if (!habits.loading()) { <p class="text-slate-500">No habits yet. Add one above.</p> }
@@ -45,6 +72,7 @@ import { HabitsService } from './habits.service';
 })
 export class HabitsComponent implements OnInit {
   habits = inject(HabitsService);
+  weekdays = WEEKDAYS;
   name = '';
   icon = '🔥';
 
@@ -52,10 +80,20 @@ export class HabitsComponent implements OnInit {
     this.habits.load();
   }
 
+  weekCount(h: HabitWithStreak): number {
+    return h.weeklyChecks.filter(Boolean).length;
+  }
+
   add(): void {
     if (!this.name.trim()) return;
     this.habits.add({ name: this.name.trim(), icon: this.icon || '✅' });
     this.name = '';
     this.icon = '🔥';
+  }
+
+  confirmRemove(h: HabitWithStreak): void {
+    if (confirm(`Delete habit "${h.name}"? This also removes its check-in history.`)) {
+      this.habits.remove(h.id);
+    }
   }
 }

@@ -16,6 +16,18 @@ function isNextDay(prev: string, next: string): boolean {
   return ymd(p) === next;
 }
 
+/** Day keys for Monday..Sunday of the current (UTC) week. */
+function currentWeekKeys(): string[] {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() - ((now.getUTCDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setUTCDate(monday.getUTCDate() + i);
+    return ymd(d);
+  });
+}
+
 /** current (run ending today or yesterday), longest, and checkedToday. */
 function computeStreaks(dates: string[]): {
   current: number;
@@ -64,8 +76,11 @@ habitsRouter.get('/', async (c) => {
     byHabit.set(ch.habit_id as string, arr);
   }
 
+  const weekKeys = currentWeekKeys();
   const result: HabitWithStreak[] = (habits ?? []).map((h) => {
-    const s = computeStreaks(byHabit.get(h.id as string) ?? []);
+    const dates = byHabit.get(h.id as string) ?? [];
+    const s = computeStreaks(dates);
+    const set = new Set(dates);
     return {
       id: h.id,
       name: h.name,
@@ -75,6 +90,7 @@ habitsRouter.get('/', async (c) => {
       checkedToday: s.checkedToday,
       currentStreak: s.current,
       longestStreak: s.longest,
+      weeklyChecks: weekKeys.map((k) => set.has(k)),
     };
   });
   return c.json(result);
@@ -101,9 +117,19 @@ habitsRouter.post('/', async (c) => {
       checkedToday: false,
       currentStreak: 0,
       longestStreak: 0,
+      weeklyChecks: [false, false, false, false, false, false, false],
     } satisfies HabitWithStreak,
     201,
   );
+});
+
+// DELETE /api/habits/:id — remove a habit (its checks cascade-delete).
+habitsRouter.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const supabase = createSupabase(c.env);
+  const { error } = await supabase.from('habits').delete().eq('id', id);
+  if (error) return c.json({ error: 'db_error', detail: error.message }, 500);
+  return c.body(null, 204);
 });
 
 // POST /api/habits/:id/check — idempotent check-in for today.

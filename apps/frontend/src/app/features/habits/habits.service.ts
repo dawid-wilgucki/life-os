@@ -31,4 +31,10 @@ export class HabitsService {
     // Reload afterwards so streaks reflect the change accurately.
     req.subscribe(() => this.load());
   }
+
+  remove(id: string): void {
+    this.api.delete(`/api/habits/${id}`).subscribe(() => {
+      this.habits.update((list) => list.filter((h) => h.id !== id));
+    });
+  }
 }

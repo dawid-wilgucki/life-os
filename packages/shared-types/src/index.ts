@@ -268,6 +268,8 @@ export interface HabitWithStreak extends Habit {
   checkedToday: boolean;
   currentStreak: number;
   longestStreak: number;
+  /** Monday..Sunday of the current week; true if checked that day. */
+  weeklyChecks: boolean[];
 }
 
 export interface CreateHabitInput {
