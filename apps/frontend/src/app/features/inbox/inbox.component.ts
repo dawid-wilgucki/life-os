@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import type { InboxItem } from '@life-os/shared-types';
 import { InboxService } from './inbox.service';
 import { TasksService } from '../tasks/tasks.service';
+import { PageBackgroundComponent } from '../../shared/page-background.component';
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -12,9 +13,10 @@ function ymd(d: Date): string {
 @Component({
   selector: 'app-inbox',
   standalone: true,
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, PageBackgroundComponent],
   template: `
-    <div class="mx-auto max-w-2xl p-6">
+    <app-page-background theme="inbox" />
+    <div class="relative mx-auto max-w-2xl p-6">
       <h1 class="text-2xl font-semibold">Inbox</h1>
       <p class="text-sm text-slate-400">Write it down, sort it later.</p>
 

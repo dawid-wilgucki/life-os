@@ -2,13 +2,15 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TripsService } from './trips.service';
+import { PageBackgroundComponent } from '../../shared/page-background.component';
 
 @Component({
   selector: 'app-trips',
   standalone: true,
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, PageBackgroundComponent],
   template: `
-    <div class="mx-auto max-w-4xl p-6">
+    <app-page-background theme="trips" />
+    <div class="relative mx-auto max-w-4xl p-6">
       <div class="mb-4 flex items-center justify-between">
         <h1 class="text-2xl font-semibold">Trips</h1>
         <button class="lo-btn-ghost border border-surface-700" [disabled]="trips.importing()" (click)="importEmail()">

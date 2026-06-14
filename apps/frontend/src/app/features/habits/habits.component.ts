@@ -2,15 +2,17 @@ import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type { HabitWithStreak } from '@life-os/shared-types';
 import { HabitsService } from './habits.service';
+import { PageBackgroundComponent } from '../../shared/page-background.component';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 @Component({
   selector: 'app-habits',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, PageBackgroundComponent],
   template: `
-    <div class="mx-auto max-w-2xl p-6">
+    <app-page-background theme="habits" />
+    <div class="relative mx-auto max-w-2xl p-6">
       <h1 class="text-2xl font-semibold">Habits</h1>
       <p class="text-sm text-slate-400">Check in daily. Telegram nudge at 21:00 if unchecked.</p>
 
