@@ -1,0 +1,21 @@
+{
+  "name": "life-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal life management system (single-user) — Angular + Cloudflare Workers + Supabase",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace @life-os/api",
+    "dev:web": "npm run start --workspace @life-os/frontend",
+    "build": "npm run build --workspaces --if-present",
+    "build:web": "npm run build --workspace @life-os/frontend",
+    "deploy:api": "npm run deploy --workspace @life-os/api",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

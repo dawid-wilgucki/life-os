@@ -1,0 +1,10 @@
+# Copy to apps/api/.dev.vars (gitignored) for local `wrangler dev`.
+# These mirror the production secrets set via `wrangler secret put`.
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8787/auth/google/callback
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+JWT_SECRET=your-32-byte-hex-secret
+TELEGRAM_BOT_TOKEN=your-bot-token
+TELEGRAM_CHAT_ID=your-chat-id

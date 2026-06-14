@@ -141,3 +141,13 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Cloudflare Workers / Wrangler
+.wrangler/
+apps/api/.dev.vars
+apps/api/.dev.vars.*
+!apps/api/.dev.vars.example
+
+# Angular
+.angular/
+apps/frontend/dist/
