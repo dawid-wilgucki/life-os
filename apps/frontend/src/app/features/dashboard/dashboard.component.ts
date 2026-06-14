@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import type { HabitWithStreak, Trip } from '@life-os/shared-types';
+import type { CalendarEvent, HabitWithStreak, Trip } from '@life-os/shared-types';
 import { TasksService } from '../tasks/tasks.service';
 import { CalendarService } from '../calendar/calendar.service';
 import { HabitsService } from '../habits/habits.service';
@@ -60,15 +60,30 @@ function ymd(d: Date): string {
                 [class.text-slate-200]="d.inMonth"
                 [class.bg-indigo-600]="d.isToday"
                 [class.text-white]="d.isToday"
+                [class.font-semibold]="d.events.length && !d.isToday"
                 [class.hover:bg-surface-800]="!d.isToday"
+                [title]="d.events.length ? dayTooltip(d.events) : ''"
               >
                 {{ d.day }}
-                @if (d.hasEvents && !d.isToday) {
+                @if (d.events.length && !d.isToday) {
                   <span class="absolute bottom-0.5 h-1 w-1 rounded-full bg-emerald-400"></span>
                 }
               </a>
             }
           </div>
+
+          <!-- What's coming up (so you know what's on which day at a glance) -->
+          <ul class="mt-3 space-y-1.5 border-t border-surface-800 pt-3">
+            @for (e of upcomingEvents(); track e.id) {
+              <li class="flex items-baseline gap-2 text-xs">
+                <span class="w-20 shrink-0 text-slate-400">{{ e.start | date: 'EEE d MMM' }}</span>
+                <span class="shrink-0 text-slate-500">{{ e.allDay ? 'all day' : (e.start | date: 'HH:mm') }}</span>
+                <span class="flex-1 truncate text-slate-200" [title]="e.summary">{{ e.summary }}</span>
+              </li>
+            } @empty {
+              <li class="text-xs text-slate-500">No upcoming events.</li>
+            }
+          </ul>
         </section>
 
         <!-- Habits (weekly) -->
@@ -159,16 +174,23 @@ export class DashboardComponent implements OnInit {
     return out.slice(0, 8);
   });
 
-  /** 42-cell mini month grid with event markers. */
+  private eventsByDay = computed(() => {
+    const map: Record<string, CalendarEvent[]> = {};
+    for (const e of this.cal.events()) {
+      const key = e.allDay ? e.start.slice(0, 10) : ymd(new Date(e.start));
+      (map[key] ??= []).push(e);
+    }
+    return map;
+  });
+
+  /** 42-cell mini month grid; each day carries its events for dot + tooltip. */
   days = computed(() => {
     const a = this.anchor;
     const first = new Date(a.getFullYear(), a.getMonth(), 1);
     const offset = (first.getDay() + 6) % 7;
     const gridStart = new Date(a.getFullYear(), a.getMonth(), 1 - offset);
     const today = ymd(new Date());
-    const evDays = new Set(
-      this.cal.events().map((e) => (e.allDay ? e.start.slice(0, 10) : ymd(new Date(e.start)))),
-    );
+    const byDay = this.eventsByDay();
     return Array.from({ length: 42 }, (_, i) => {
       const date = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
       const key = ymd(date);
@@ -177,10 +199,24 @@ export class DashboardComponent implements OnInit {
         day: date.getDate(),
         inMonth: date.getMonth() === a.getMonth(),
         isToday: key === today,
-        hasEvents: evDays.has(key),
+        events: byDay[key] ?? [],
       };
     });
   });
+
+  /** Next few events from today onward, for the labelled list under the grid. */
+  upcomingEvents = computed<CalendarEvent[]>(() => {
+    const todayKey = ymd(new Date());
+    return this.cal
+      .events()
+      .filter((e) => (e.allDay ? e.start.slice(0, 10) : ymd(new Date(e.start))) >= todayKey)
+      .sort((a, b) => a.start.localeCompare(b.start))
+      .slice(0, 5);
+  });
+
+  dayTooltip(events: CalendarEvent[]): string {
+    return events.map((e) => e.summary).join(', ');
+  }
 
   upcomingTrips = computed<Trip[]>(() => {
     const since = Date.now() - 12 * 3_600_000; // keep today's trips visible
