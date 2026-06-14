@@ -35,7 +35,8 @@ function normalize(json: any): Wardrobe {
     const filename = raw.nazwa_pliku_drive ?? raw.nazwaPlikuDrive;
     const item: WardrobeItem = {
       ...raw,
-      id: String(raw.id ?? `${section}-${idx}`),
+      // Unique even when the source JSON repeats an id (e.g. G020 twice).
+      id: `${section}-${idx}-${raw.id ?? ''}`,
       nazwa: raw.nazwa ?? raw.name ?? filename ?? 'Item',
       section,
       nazwaPlikuDrive: filename,
@@ -51,8 +52,10 @@ function normalize(json: any): Wardrobe {
       if (SECTIONS.includes(s)) push(s, it, i);
     });
   } else {
+    // Sections live under `ubrania` in the real file; fall back to top-level.
+    const root = json?.ubrania ?? json;
     for (const s of SECTIONS) {
-      const arr = json?.[s];
+      const arr = root?.[s];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (Array.isArray(arr)) arr.forEach((it: any, i: number) => push(s, it, i));
     }
