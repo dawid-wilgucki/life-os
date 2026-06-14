@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { AppContext, Env } from './types';
 import { authRouter } from './routes/auth';
+import { tasksRouter } from './routes/tasks';
 
 const app = new Hono<AppContext>();
 
@@ -24,9 +25,9 @@ app.get('/health', (c) => c.json({ ok: true, service: 'life-os-api' }));
 // --- Auth (Google OAuth) ---
 app.route('/auth', authRouter);
 
-// Further /api/* route modules are mounted here in later commits:
-//   app.route('/api/tasks', tasksRouter);
-//   ... etc.
+// --- API modules ---
+app.route('/api/tasks', tasksRouter);
+// Further /api/* route modules are mounted here in later commits.
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 app.onError((err, c) => {
