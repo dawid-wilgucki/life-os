@@ -10,6 +10,7 @@ import { investmentsRouter } from './routes/investments';
 import { wardrobeRouter } from './routes/wardrobe';
 import { tripsRouter } from './routes/trips';
 import { maintenanceRouter } from './routes/maintenance';
+import { habitsRouter } from './routes/habits';
 import { handleScheduled } from './cron';
 
 const app = new Hono<AppContext>();
@@ -42,7 +43,7 @@ app.route('/api/investments', investmentsRouter);
 app.route('/api/wardrobe', wardrobeRouter);
 app.route('/api/trips', tripsRouter);
 app.route('/api/maintenance', maintenanceRouter);
-// Further /api/* route modules are mounted here in later commits.
+app.route('/api/habits', habitsRouter);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 app.onError((err, c) => {
