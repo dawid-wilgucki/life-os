@@ -6,6 +6,7 @@ import { tasksRouter } from './routes/tasks';
 import { calendarRouter } from './routes/calendar';
 import { inboxRouter } from './routes/inbox';
 import { telegramRouter } from './routes/telegram';
+import { investmentsRouter } from './routes/investments';
 
 const app = new Hono<AppContext>();
 
@@ -33,6 +34,7 @@ app.route('/api/tasks', tasksRouter);
 app.route('/api/calendar', calendarRouter);
 app.route('/api/inbox', inboxRouter);
 app.route('/api/telegram', telegramRouter);
+app.route('/api/investments', investmentsRouter);
 // Further /api/* route modules are mounted here in later commits.
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
