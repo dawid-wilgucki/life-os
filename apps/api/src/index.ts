@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import type { AppContext, Env } from './types';
 import { authRouter } from './routes/auth';
 import { tasksRouter } from './routes/tasks';
+import { calendarRouter } from './routes/calendar';
 
 const app = new Hono<AppContext>();
 
@@ -27,6 +28,7 @@ app.route('/auth', authRouter);
 
 // --- API modules ---
 app.route('/api/tasks', tasksRouter);
+app.route('/api/calendar', calendarRouter);
 // Further /api/* route modules are mounted here in later commits.
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
