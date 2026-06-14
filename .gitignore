@@ -151,3 +151,6 @@ apps/api/.dev.vars.*
 # Angular
 .angular/
 apps/frontend/dist/
+
+# Personal scratch notes (not part of the project)
+to_do.txt
