@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import type { MaintenanceCategory, MaintenanceItem } from '@life-os/shared-types';
 import { MaintenanceService } from './maintenance.service';
+import { PageBackgroundComponent } from '../../shared/page-background.component';
 
 const CATEGORY_ICON: Record<MaintenanceCategory, string> = {
   ogrod: '🌳',
@@ -13,9 +14,10 @@ const CATEGORY_ICON: Record<MaintenanceCategory, string> = {
 @Component({
   selector: 'app-maintenance',
   standalone: true,
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, PageBackgroundComponent],
   template: `
-    <div class="mx-auto max-w-3xl p-6">
+    <app-page-background theme="maintenance" />
+    <div class="relative mx-auto max-w-3xl p-6">
       <h1 class="text-2xl font-semibold">Maintenance</h1>
       <p class="text-sm text-slate-400">Recurring home, garden and car tasks. Reminders via Telegram 3 days ahead.</p>
 

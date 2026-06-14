@@ -1,12 +1,15 @@
 import { Component, OnInit, inject } from '@angular/core';
 import type { WardrobeItem, WardrobeSection } from '@life-os/shared-types';
 import { WardrobeService } from './wardrobe.service';
+import { PageBackgroundComponent } from '../../shared/page-background.component';
 
 @Component({
   selector: 'app-wardrobe',
   standalone: true,
+  imports: [PageBackgroundComponent],
   template: `
-    <div class="mx-auto max-w-6xl p-6">
+    <app-page-background theme="wardrobe" />
+    <div class="relative mx-auto max-w-6xl p-6">
       <div class="mb-4 flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-semibold">Wardrobe</h1>

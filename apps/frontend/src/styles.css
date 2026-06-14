@@ -13,8 +13,10 @@
 }
 
 @layer components {
+  /* Semi-transparent dark block so the flat vector wallpaper shows through
+     in the gaps while text stays perfectly readable. */
   .lo-card {
-    @apply rounded-xl border border-surface-700/60 bg-surface-900 shadow-sm;
+    @apply rounded-xl border border-surface-700/50 bg-surface-900/80 shadow-sm backdrop-blur-sm;
   }
   .lo-input {
     @apply w-full rounded-lg border border-surface-700 bg-surface-800 px-3 py-2

@@ -1,13 +1,15 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { InvestmentsService } from './investments.service';
+import { PageBackgroundComponent } from '../../shared/page-background.component';
 
 @Component({
   selector: 'app-investments',
   standalone: true,
-  imports: [DatePipe, DecimalPipe],
+  imports: [DatePipe, DecimalPipe, PageBackgroundComponent],
   template: `
-    <div class="mx-auto max-w-4xl p-6">
+    <app-page-background theme="investments" />
+    <div class="relative mx-auto max-w-4xl p-6">
       <div class="mb-4 flex items-center justify-between">
         <h1 class="text-2xl font-semibold">Investments</h1>
         <button class="lo-btn-ghost" (click)="inv.load()">↻ Refresh</button>

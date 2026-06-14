@@ -6,6 +6,8 @@ import { TasksService } from '../tasks/tasks.service';
 import { CalendarService } from '../calendar/calendar.service';
 import { HabitsService } from '../habits/habits.service';
 import { TripsService } from '../trips/trips.service';
+import { PageBackgroundComponent } from '../../shared/page-background.component';
+import { KrakowStatusComponent } from './krakow-status.component';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -16,13 +18,16 @@ function ymd(d: Date): string {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterLink, DatePipe],
+  imports: [RouterLink, DatePipe, PageBackgroundComponent, KrakowStatusComponent],
   template: `
-    <div class="mx-auto max-w-5xl p-6">
+    <app-page-background theme="dashboard" />
+    <div class="relative mx-auto max-w-5xl p-6">
       <h1 class="text-2xl font-semibold">Dashboard</h1>
       <p class="text-sm text-slate-400">Your day at a glance.</p>
 
-      <div class="mt-6 grid gap-4 lg:grid-cols-2">
+      <app-krakow-status class="mt-6 block" />
+
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
         <!-- To-do -->
         <section class="lo-card p-4">
           <header class="mb-3 flex items-center justify-between">
