@@ -13,3 +13,4 @@ GEMINI_API_KEY=AIzaSy...
 # Google Calendar IDs for parent shared calendars (Settings → Calendar ID in Google Calendar)
 PARENT_MOM_CALENDAR_ID=mama@group.calendar.google.com
 PARENT_DAD_CALENDAR_ID=tata@group.calendar.google.com
+
