@@ -11,6 +11,9 @@ import { wardrobeRouter } from './routes/wardrobe';
 import { tripsRouter } from './routes/trips';
 import { maintenanceRouter } from './routes/maintenance';
 import { habitsRouter } from './routes/habits';
+import { subscriptionsRouter } from './routes/subscriptions';
+import { listsRouter } from './routes/lists';
+import { mealPlanRouter } from './routes/meal-plan';
 import { handleScheduled } from './cron';
 
 const app = new Hono<AppContext>();
@@ -44,6 +47,9 @@ app.route('/api/wardrobe', wardrobeRouter);
 app.route('/api/trips', tripsRouter);
 app.route('/api/maintenance', maintenanceRouter);
 app.route('/api/habits', habitsRouter);
+app.route('/api/subscriptions', subscriptionsRouter);
+app.route('/api/lists', listsRouter);
+app.route('/api/meal-plan', mealPlanRouter);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 app.onError((err, c) => {

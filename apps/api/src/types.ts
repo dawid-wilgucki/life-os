@@ -17,6 +17,11 @@ export interface Env {
   JWT_SECRET: string;
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_CHAT_ID: string;
+  /** Google AI Studio key — used for meal-plan and wardrobe suggestion endpoints. */
+  GEMINI_API_KEY?: string;
+  /** Google Calendar IDs for shared parent calendars (optional). */
+  PARENT_MOM_CALENDAR_ID?: string;
+  PARENT_DAD_CALENDAR_ID?: string;
 }
 
 /** Per-request values set by middleware and read by route handlers. */

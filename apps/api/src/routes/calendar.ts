@@ -4,7 +4,8 @@ import type { AppContext } from '../types';
 import { requireAuth } from '../middleware/auth';
 import { googleFetch } from '../lib/google';
 
-const CAL_API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+const CAL_BASE = 'https://www.googleapis.com/calendar/v3/calendars';
+const CAL_API = `${CAL_BASE}/primary/events`;
 
 export const calendarRouter = new Hono<AppContext>();
 
@@ -42,6 +43,19 @@ calendarRouter.post('/webhook', async (c) => {
 // Everything else requires auth.
 calendarRouter.use('*', requireAuth);
 
+// GET /api/calendar/owners — list of calendars available to write events to
+// (user's primary + configured parent calendars).
+calendarRouter.get('/owners', (c) => {
+  const owners = [{ id: 'primary', label: 'Ja' }];
+  if (c.env.PARENT_MOM_CALENDAR_ID) {
+    owners.push({ id: c.env.PARENT_MOM_CALENDAR_ID, label: 'Mama' });
+  }
+  if (c.env.PARENT_DAD_CALENDAR_ID) {
+    owners.push({ id: c.env.PARENT_DAD_CALENDAR_ID, label: 'Tata' });
+  }
+  return c.json(owners);
+});
+
 // GET /api/calendar/events?start=&end= — events in a time window.
 calendarRouter.get('/events', async (c) => {
   const accountId = c.get('session').sub;
@@ -61,14 +75,17 @@ calendarRouter.get('/events', async (c) => {
 });
 
 // POST /api/calendar/events
+// Accepts optional `calendarId` in the body to write to a shared calendar
+// (e.g. a parent's calendar that has been shared with the user's account).
 calendarRouter.post('/events', async (c) => {
   const accountId = c.get('session').sub;
   const body = await c.req.json<CreateEventInput>();
   if (!body.summary?.trim() || !body.start || !body.end) {
     return c.json({ error: 'summary_start_end_required' }, 400);
   }
+  const calId = encodeURIComponent(body.calendarId ?? 'primary');
   const times = toGoogleTimes(body);
-  const res = await googleFetch(c.env, accountId, CAL_API, {
+  const res = await googleFetch(c.env, accountId, `${CAL_BASE}/${calId}/events`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({

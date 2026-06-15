@@ -8,6 +8,8 @@ import { HabitsService } from '../habits/habits.service';
 import { TripsService } from '../trips/trips.service';
 import { PageBackgroundComponent } from '../../shared/page-background.component';
 import { KrakowStatusComponent } from './krakow-status.component';
+import { PinnedListsComponent } from './pinned-lists.component';
+import { MealPlanWidgetComponent } from './meal-plan-widget.component';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -18,7 +20,7 @@ function ymd(d: Date): string {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterLink, DatePipe, PageBackgroundComponent, KrakowStatusComponent],
+  imports: [RouterLink, DatePipe, PageBackgroundComponent, KrakowStatusComponent, PinnedListsComponent, MealPlanWidgetComponent],
   template: `
     <app-page-background theme="dashboard" />
     <div class="relative mx-auto max-w-5xl p-6">
@@ -140,6 +142,16 @@ function ymd(d: Date): string {
             }
           </ul>
         </section>
+      </div>
+
+      <!-- Pinned lists (up to 2) + meal plan — second row -->
+      <div class="mt-4 grid gap-4 lg:grid-cols-3">
+        <!-- Pinned lists occupy 2 columns on desktop -->
+        <div class="contents lg:col-span-2 lg:grid lg:grid-cols-2 lg:gap-4">
+          <app-pinned-lists />
+        </div>
+        <!-- Meal plan widget: full width on mobile, 1 col on desktop -->
+        <app-meal-plan-widget class="lg:col-span-1" />
       </div>
     </div>
   `,

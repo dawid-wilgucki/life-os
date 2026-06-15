@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Wardrobe, WardrobeItem, WardrobeSection } from '@life-os/shared-types';
+import type { Wardrobe, WardrobeItem, WardrobeSection, WardrobeSuggestion } from '@life-os/shared-types';
 import type { AppContext, Env } from '../types';
 import { requireAuth } from '../middleware/auth';
 import { googleFetch } from '../lib/google';
@@ -96,6 +96,79 @@ wardrobeRouter.get('/photo/:name', async (c) => {
 });
 
 wardrobeRouter.use('*', requireAuth);
+
+const WARDROBE_SUGGEST_PROMPT = `Jesteś ekspertem od mody i stylizacji. Przeanalizuj poniższą listę ubrań i zaproponuj 1 KONKRETNY zakup, który najbardziej uzupełni braki w garderobie.
+
+Zwróć WYŁĄCZNIE czysty JSON (bez Markdown, bez wstępów). Pierwszym znakiem musi być "{", ostatnim "}".
+
+Struktura:
+{"item":"Nazwa konkretnego produktu (np. 'biała koszula Oxford slim fit')","reason":"Krótkie uzasadnienie, max 2 zdania.","category":"jedna z: gora|dol|buty|bielizna_i_dodatki|silownia"}`;
+
+async function sha256hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// GET /api/wardrobe/suggestion — Gemini-powered purchase recommendation, KV-cached by wardrobe hash.
+wardrobeRouter.get('/suggestion', async (c) => {
+  const accountId = c.get('session').sub;
+  const fileId = await findFileId(c.env, accountId, WARDROBE_JSON);
+  if (!fileId) return c.json({ error: 'wardrobe_json_not_found' }, 404);
+
+  const driveRes = await googleFetch(c.env, accountId, `${DRIVE}/${fileId}?alt=media`);
+  if (!driveRes.ok) return c.json({ error: 'drive_error' }, 502);
+  const rawJson = await driveRes.text();
+
+  const hash = await sha256hex(rawJson);
+  const hashKey = `wardrobe:hash:${accountId}`;
+  const sugKey = `wardrobe:suggestion:${accountId}`;
+
+  const cachedHash = await c.env.TOKENS.get(hashKey);
+  if (cachedHash === hash) {
+    const cached = await c.env.TOKENS.get(sugKey);
+    if (cached) {
+      return c.json({ ...(JSON.parse(cached) as Omit<WardrobeSuggestion, 'cached'>), cached: true });
+    }
+  }
+
+  if (!c.env.GEMINI_API_KEY) return c.json({ error: 'gemini_not_configured' }, 503);
+
+  const wardrobe = normalize(JSON.parse(rawJson));
+  const allItems = (Object.keys(wardrobe) as WardrobeSection[])
+    .flatMap((s) => wardrobe[s].map((i) => `${s}: ${i.nazwa}`))
+    .join('\n');
+
+  const geminiRes = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${c.env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: WARDROBE_SUGGEST_PROMPT }] },
+        contents: [{ parts: [{ text: `Moja garderoba:\n${allItems}` }] }],
+      }),
+    },
+  );
+  if (!geminiRes.ok) return c.json({ error: 'gemini_error', detail: await geminiRes.text() }, 502);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const geminiData = (await geminiRes.json()) as any;
+  const rawText: string = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+  let suggestion: Omit<WardrobeSuggestion, 'cached'>;
+  try {
+    suggestion = JSON.parse(rawText.trim());
+  } catch {
+    return c.json({ error: 'gemini_parse_error', raw: rawText.slice(0, 200) }, 502);
+  }
+
+  // Store with no TTL — only invalidated when the wardrobe hash changes.
+  await c.env.TOKENS.put(hashKey, hash);
+  await c.env.TOKENS.put(sugKey, JSON.stringify(suggestion));
+  return c.json({ ...suggestion, cached: false } as WardrobeSuggestion);
+});
 
 // GET /api/wardrobe — read the wardrobe JSON from Drive, grouped by section.
 wardrobeRouter.get('/', async (c) => {

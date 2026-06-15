@@ -7,7 +7,8 @@ export type BgTheme =
   | 'investments'
   | 'trips'
   | 'habits'
-  | 'inbox';
+  | 'inbox'
+  | 'subscriptions';
 
 interface ThemeCfg {
   /** Asset path (served from apps/frontend/assets via angular.json). */
@@ -29,6 +30,8 @@ const THEMES: Record<BgTheme, ThemeCfg> = {
   investments: { img: A + 'minimalist-star-wars-display-isxi8qx4rmm2eex2.jpg', position: 'center', accent: '#4d7ea8' },
   trips: { img: A + '1353023.png', position: 'center', accent: '#3aa0a0' },
   habits: { img: A + 'attack-on-titans-trio-minimalist-anime-t4rkd9q550lrcc6j.jpg', position: 'center', accent: '#6f8f5a' },
+  // Subscriptions reuses the Star Wars art — "dark side" money flows.
+  subscriptions: { img: A + 'minimalist-star-wars-display-isxi8qx4rmm2eex2.jpg', position: 'center', accent: '#3d8c5e' },
 };
 
 /**

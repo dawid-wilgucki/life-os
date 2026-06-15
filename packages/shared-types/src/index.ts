@@ -108,6 +108,8 @@ export interface CreateEventInput {
   start: IsoDateTime | IsoDate;
   end: IsoDateTime | IsoDate;
   allDay?: boolean;
+  /** Defaults to 'primary'. Pass the Google Calendar ID to write to a shared calendar. */
+  calendarId?: string;
 }
 
 export type UpdateEventInput = Partial<CreateEventInput>;
@@ -275,4 +277,88 @@ export interface HabitWithStreak extends Habit {
 export interface CreateHabitInput {
   name: string;
   icon: string;
+}
+
+// ============================================================================
+// Subscriptions
+// ============================================================================
+
+export type BillingCycle = 'monthly' | 'yearly' | 'weekly';
+
+export interface Subscription {
+  id: string;
+  name: string;
+  costPln: number;
+  billingCycle: BillingCycle;
+  renewalDate?: IsoDate;
+  color?: string;
+  icon?: string;
+  createdAt: IsoDateTime;
+}
+
+export interface CreateSubscriptionInput {
+  name: string;
+  costPln: number;
+  billingCycle: BillingCycle;
+  renewalDate?: IsoDate;
+  color?: string;
+  icon?: string;
+}
+
+// ============================================================================
+// Lists (Google Keep-style pinned lists)
+// ============================================================================
+
+export interface List {
+  id: string;
+  title: string;
+  pinned: boolean;
+  createdAt: IsoDateTime;
+}
+
+export interface ListItem {
+  id: string;
+  listId: string;
+  text: string;
+  checked: boolean;
+  sortOrder: number;
+  createdAt: IsoDateTime;
+}
+
+export interface ListWithItems extends List {
+  items: ListItem[];
+}
+
+export interface CreateListItemInput {
+  text: string;
+}
+
+// ============================================================================
+// Meal Plan (Gemini-generated 7-day plan)
+// ============================================================================
+
+export interface MealDay {
+  day_id: number;
+  day_name: string;
+  meal_name: string;
+  prep_time_min: number;
+  is_batch_leftover: boolean;
+  tags: string[];
+  recipe_steps: string[];
+}
+
+export interface MealPlan {
+  meal_plan: MealDay[];
+  generatedAt: IsoDateTime;
+}
+
+// ============================================================================
+// Wardrobe Suggestion (Gemini-powered, KV-cached)
+// ============================================================================
+
+export interface WardrobeSuggestion {
+  item: string;
+  reason: string;
+  category: WardrobeSection;
+  cached: boolean;
 }

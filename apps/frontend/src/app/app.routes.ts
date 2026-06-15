@@ -54,6 +54,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/habits/habits.component').then((m) => m.HabitsComponent),
       },
+      {
+        path: 'subscriptions',
+        loadComponent: () =>
+          import('./features/subscriptions/subscriptions.component').then(
+            (m) => m.SubscriptionsComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: '' },

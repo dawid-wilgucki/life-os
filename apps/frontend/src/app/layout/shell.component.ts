@@ -82,6 +82,7 @@ export class ShellComponent {
     { path: 'trips', label: 'Trips', icon: '🚆' },
     { path: 'maintenance', label: 'Maintenance', icon: '🔧' },
     { path: 'habits', label: 'Habits', icon: '🔥' },
+    { path: 'subscriptions', label: 'Subscriptions', icon: '💳' },
   ];
 
   toggleSidebar(): void {

@@ -74,7 +74,20 @@ function ymd(d: Date): string {
           </ul>
 
           <form class="grid gap-2 sm:grid-cols-2" (ngSubmit)="add()">
-            <input class="lo-input sm:col-span-2" placeholder="New event title…" [(ngModel)]="title" name="title" />
+            <input class="lo-input sm:col-span-2" placeholder="Tytuł zdarzenia…" [(ngModel)]="title" name="title" />
+
+            <!-- Calendar owner dropdown (populated from /api/calendar/owners) -->
+            @if (owners().length > 1) {
+              <div class="flex items-center gap-2 sm:col-span-2">
+                <span class="shrink-0 text-sm text-slate-400">Kalendarz:</span>
+                <select class="lo-input" [(ngModel)]="calendarId" name="calendarId">
+                  @for (o of owners(); track o.id) {
+                    <option [value]="o.id">{{ o.label }}</option>
+                  }
+                </select>
+              </div>
+            }
+
             <label class="flex items-center gap-2 text-sm text-slate-300">
               <input type="checkbox" class="accent-indigo-500" [(ngModel)]="allDay" name="allDay" /> All day
             </label>
@@ -85,7 +98,7 @@ function ymd(d: Date): string {
                 <input class="lo-input" type="time" [(ngModel)]="endTime" name="endTime" />
               </div>
             }
-            <button type="submit" class="lo-btn sm:col-span-2">Add event</button>
+            <button type="submit" class="lo-btn sm:col-span-2">Dodaj zdarzenie</button>
           </form>
         </div>
       }
@@ -104,6 +117,9 @@ export class CalendarComponent implements OnInit {
   allDay = false;
   startTime = '09:00';
   endTime = '10:00';
+  calendarId = 'primary';
+
+  owners = this.cal.owners;
 
   monthLabel = computed(() =>
     this.anchor().toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
@@ -133,6 +149,7 @@ export class CalendarComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.cal.loadOwners();
     this.reload();
   }
 
@@ -185,7 +202,10 @@ export class CalendarComponent implements OnInit {
       input = { summary: this.title.trim(), start: start.toISOString(), end: end.toISOString(), allDay: false };
     }
 
-    this.cal.create(input).subscribe(() => {
+    const fullInput = this.calendarId && this.calendarId !== 'primary'
+      ? { ...input, calendarId: this.calendarId }
+      : input;
+    this.cal.create(fullInput).subscribe(() => {
       this.title = '';
       this.reload();
     });
