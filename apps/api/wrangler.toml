@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 # JWT_SECRET, TELEGRAM_BOT_TOKEN, ...) are set via `wrangler secret put` and
 # locally via apps/api/.dev.vars (gitignored).
 [vars]
-FRONTEND_ORIGIN = "http://localhost:4200"
+FRONTEND_ORIGIN = "https://life-os-5qd.pages.dev"
 
 # Access-token cache + transient OAuth state. Create with:
 #   wrangler kv namespace create TOKENS

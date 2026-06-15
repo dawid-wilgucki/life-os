@@ -157,7 +157,7 @@ to_do.txt
 
 # Wallpaper binaries (third-party/copyrighted art) — kept local, not committed.
 # Place your images in apps/frontend/assets/ ; the app references them at runtime.
-apps/frontend/assets/*.jpg
-apps/frontend/assets/*.jpeg
-apps/frontend/assets/*.png
-apps/frontend/assets/*.webp
+# apps/frontend/assets/*.jpg
+# apps/frontend/assets/*.jpeg
+# apps/frontend/assets/*.png
+# apps/frontend/assets/*.webp
