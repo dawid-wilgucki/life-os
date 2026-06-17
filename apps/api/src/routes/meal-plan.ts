@@ -4,6 +4,8 @@ import type { AppContext } from '../types';
 import { requireAuth } from '../middleware/auth';
 import { createSupabase } from '../lib/supabase';
 
+const GEMINI_MODEL = 'gemini-1.5-flash';
+
 export const mealPlanRouter = new Hono<AppContext>();
 mealPlanRouter.use('*', requireAuth);
 
@@ -66,13 +68,17 @@ mealPlanRouter.get('/', async (c) => {
     : 'Brak listy zakupów. Zaproponuj 7-dniowy jadłospis oparty na typowych produktach dostępnych w Polsce.';
 
   const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${c.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${c.env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents: [{ parts: [{ text: userPrompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.7,
+        },
       }),
     },
   );

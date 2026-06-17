@@ -13,7 +13,7 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
       <div class="mb-4 flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-semibold">Wardrobe</h1>
-          <p class="text-sm text-slate-400">Read-only. Edit in the garderoba.html artifact.</p>
+          <p class="text-sm text-slate-400">Dane z Google Drive — odśwież po edycji w garderoba.html.</p>
         </div>
         <button class="lo-btn-ghost" (click)="wardrobe.load()">↻ Refresh</button>
       </div>

@@ -97,6 +97,8 @@ wardrobeRouter.get('/photo/:name', async (c) => {
 
 wardrobeRouter.use('*', requireAuth);
 
+const GEMINI_MODEL = 'gemini-1.5-flash';
+
 const WARDROBE_SUGGEST_PROMPT = `Jesteś ekspertem od mody i stylizacji. Przeanalizuj poniższą listę ubrań i zaproponuj 1 KONKRETNY zakup, który najbardziej uzupełni braki w garderobie.
 
 Zwróć WYŁĄCZNIE czysty JSON (bez Markdown, bez wstępów). Pierwszym znakiem musi być "{", ostatnim "}".
@@ -141,13 +143,17 @@ wardrobeRouter.get('/suggestion', async (c) => {
     .join('\n');
 
   const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${c.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${c.env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: WARDROBE_SUGGEST_PROMPT }] },
         contents: [{ parts: [{ text: `Moja garderoba:\n${allItems}` }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.5,
+        },
       }),
     },
   );
