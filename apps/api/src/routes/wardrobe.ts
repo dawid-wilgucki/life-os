@@ -6,6 +6,7 @@ import { googleFetch } from '../lib/google';
 import { verifySession } from '../lib/jwt';
 
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
+const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const WARDROBE_JSON = 'garderoba_ubran_nowych_stan.json';
 const SECTIONS: WardrobeSection[] = ['gora', 'dol', 'buty', 'bielizna_i_dodatki', 'silownia'];
 
@@ -18,6 +19,42 @@ async function findFileId(env: Env, accountId: string, name: string): Promise<st
   if (!res.ok) return null;
   const data = (await res.json()) as { files?: { id: string }[] };
   return data.files?.[0]?.id ?? null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchRawJson(env: Env, accountId: string): Promise<{ fileId: string; raw: any } | null> {
+  const fileId = await findFileId(env, accountId, WARDROBE_JSON);
+  if (!fileId) return null;
+  const res = await googleFetch(env, accountId, `${DRIVE}/${fileId}?alt=media`);
+  if (!res.ok) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = (await res.json()) as any;
+  return { fileId, raw };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function writeRawJson(env: Env, accountId: string, fileId: string, raw: unknown): Promise<boolean> {
+  const res = await googleFetch(env, accountId, `${DRIVE_UPLOAD}/${fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(raw),
+  });
+  return res.ok;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getRawSection(raw: any, section: WardrobeSection): any[] {
+  const root = raw?.ubrania ?? raw;
+  return Array.isArray(root?.[section]) ? root[section] : [];
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function setRawSection(raw: any, section: WardrobeSection, items: any[]): void {
+  if (raw?.ubrania !== undefined) {
+    raw.ubrania[section] = items;
+  } else {
+    raw[section] = items;
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -186,4 +223,77 @@ wardrobeRouter.get('/', async (c) => {
   if (!res.ok) return c.json({ error: 'drive_error', detail: await res.text() }, 502);
   const json = await res.json();
   return c.json(normalize(json));
+});
+
+// POST /api/wardrobe/item — add a new item to the Drive JSON.
+wardrobeRouter.post('/item', async (c) => {
+  const accountId = c.get('session').sub;
+  const body = await c.req.json<{ section: WardrobeSection; nazwa: string; nazwaPlikuDrive?: string }>();
+  if (!SECTIONS.includes(body.section)) return c.json({ error: 'invalid_section' }, 400);
+  if (!body.nazwa?.trim()) return c.json({ error: 'nazwa_required' }, 400);
+
+  const fetched = await fetchRawJson(c.env, accountId);
+  if (!fetched) return c.json({ error: 'wardrobe_json_not_found' }, 404);
+  const { fileId, raw } = fetched;
+
+  const items = getRawSection(raw, body.section);
+  const newItem: Record<string, unknown> = {
+    id: `${body.section.charAt(0).toUpperCase()}${Date.now()}`,
+    nazwa: body.nazwa.trim(),
+  };
+  if (body.nazwaPlikuDrive) newItem['nazwaPlikuDrive'] = body.nazwaPlikuDrive;
+  items.push(newItem);
+  setRawSection(raw, body.section, items);
+
+  const ok = await writeRawJson(c.env, accountId, fileId, raw);
+  if (!ok) return c.json({ error: 'drive_write_error' }, 502);
+
+  return c.json(normalize(raw), 201);
+});
+
+// PUT /api/wardrobe/item/:section/:index — update item's nazwa.
+wardrobeRouter.put('/item/:section/:index', async (c) => {
+  const section = c.req.param('section') as WardrobeSection;
+  const idx = parseInt(c.req.param('index'), 10);
+  if (!SECTIONS.includes(section) || isNaN(idx)) return c.json({ error: 'invalid_params' }, 400);
+
+  const accountId = c.get('session').sub;
+  const body = await c.req.json<{ nazwa?: string }>();
+
+  const fetched = await fetchRawJson(c.env, accountId);
+  if (!fetched) return c.json({ error: 'wardrobe_json_not_found' }, 404);
+  const { fileId, raw } = fetched;
+
+  const items = getRawSection(raw, section);
+  if (idx < 0 || idx >= items.length) return c.json({ error: 'item_not_found' }, 404);
+  if (body.nazwa?.trim()) items[idx].nazwa = body.nazwa.trim();
+  setRawSection(raw, section, items);
+
+  const ok = await writeRawJson(c.env, accountId, fileId, raw);
+  if (!ok) return c.json({ error: 'drive_write_error' }, 502);
+
+  return c.json(normalize(raw));
+});
+
+// DELETE /api/wardrobe/item/:section/:index — remove an item from the Drive JSON.
+wardrobeRouter.delete('/item/:section/:index', async (c) => {
+  const section = c.req.param('section') as WardrobeSection;
+  const idx = parseInt(c.req.param('index'), 10);
+  if (!SECTIONS.includes(section) || isNaN(idx)) return c.json({ error: 'invalid_params' }, 400);
+
+  const accountId = c.get('session').sub;
+
+  const fetched = await fetchRawJson(c.env, accountId);
+  if (!fetched) return c.json({ error: 'wardrobe_json_not_found' }, 404);
+  const { fileId, raw } = fetched;
+
+  const items = getRawSection(raw, section);
+  if (idx < 0 || idx >= items.length) return c.json({ error: 'item_not_found' }, 404);
+  items.splice(idx, 1);
+  setRawSection(raw, section, items);
+
+  const ok = await writeRawJson(c.env, accountId, fileId, raw);
+  if (!ok) return c.json({ error: 'drive_write_error' }, 502);
+
+  return c.json(normalize(raw));
 });

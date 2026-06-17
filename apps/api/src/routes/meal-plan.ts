@@ -110,3 +110,80 @@ mealPlanRouter.delete('/', async (c) => {
   await c.env.TOKENS.delete(`meal_plan:${accountId}`);
   return c.body(null, 204);
 });
+
+const SHOPPING_LIST_PROMPT = `Jesteś asystentem kuchennym. Na podstawie podanego jadłospisu wygeneruj minimalną, deduplikowaną listę zakupów. Zwróć WYŁĄCZNIE czysty JSON. Pierwszym znakiem musi być "[", ostatnim "]". Format: ["składnik 1", "składnik 2", ...]`;
+
+// POST /api/meal-plan/generate-shopping-list — extract ingredients and add to the shopping list.
+mealPlanRouter.post('/generate-shopping-list', async (c) => {
+  const accountId = c.get('session').sub;
+  const kvKey = `meal_plan:${accountId}`;
+
+  const cached = await c.env.TOKENS.get(kvKey);
+  if (!cached) return c.json({ error: 'no_meal_plan' }, 404);
+
+  if (!c.env.GEMINI_API_KEY) return c.json({ error: 'gemini_not_configured' }, 503);
+
+  const geminiRes = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${c.env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SHOPPING_LIST_PROMPT }] },
+        contents: [{ parts: [{ text: cached }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.3,
+        },
+      }),
+    },
+  );
+  if (!geminiRes.ok) return c.json({ error: 'gemini_error', detail: await geminiRes.text() }, 502);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const geminiData = (await geminiRes.json()) as any;
+  const rawText: string = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+  let ingredients: string[];
+  try {
+    const parsed = JSON.parse(rawText.trim());
+    if (!Array.isArray(parsed)) throw new Error('not an array');
+    ingredients = parsed.filter((s): s is string => typeof s === 'string');
+  } catch {
+    return c.json({ error: 'gemini_parse_error', raw: rawText.slice(0, 300) }, 502);
+  }
+
+  const supabase = createSupabase(c.env);
+  const { data: listRow } = await supabase
+    .from('lists')
+    .select('id, list_items(text, checked)')
+    .ilike('title', '%zakup%')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!listRow) return c.json({ error: 'shopping_list_not_found' }, 404);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existingTexts = new Set<string>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (listRow.list_items as any[])
+      .filter((i) => !i.checked)
+      .map((i) => (i.text as string).toLowerCase().trim()),
+  );
+
+  const toAdd = ingredients.filter((ing) => !existingTexts.has(ing.toLowerCase().trim()));
+
+  if (toAdd.length > 0) {
+    await supabase.from('list_items').insert(
+      toAdd.map((text, i) => ({
+        list_id: listRow.id,
+        text,
+        checked: false,
+        sort_order: Date.now() + i,
+      })),
+    );
+  }
+
+  return c.json({ added: toAdd.length, skipped: ingredients.length - toAdd.length });
+});
