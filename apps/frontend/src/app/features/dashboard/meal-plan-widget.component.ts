@@ -103,12 +103,13 @@ export class MealPlanWidgetComponent implements OnInit {
     this.api.get<MealPlan>('/api/meal-plan', force ? { force: true } : {}).subscribe({
       next: (p) => this.plan.set(p),
       error: (e) => {
-        const msg = e?.error?.error ?? 'Błąd generowania jadłospisu';
-        if (msg === 'gemini_not_configured') {
-          this.error.set('Skonfiguruj GEMINI_API_KEY w .dev.vars aby włączyć jadłospis.');
-        } else {
-          this.error.set(msg);
-        }
+        const code = e?.error?.error ?? 'unknown';
+        const messages: Record<string, string> = {
+          gemini_not_configured: 'Brak klucza GEMINI_API_KEY — skonfiguruj go w .dev.vars.',
+          gemini_error: 'Błąd połączenia z Gemini. Sprawdź klucz API i spróbuj ponownie.',
+          gemini_parse_error: 'Gemini zwrócił niepoprawną odpowiedź. Spróbuj wygenerować ponownie.',
+        };
+        this.error.set(messages[code] ?? 'Nieznany błąd generowania jadłospisu.');
         this.loading.set(false);
       },
       complete: () => this.loading.set(false),
