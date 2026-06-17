@@ -25,7 +25,7 @@ app.use('*', (c, next) =>
       const allowed = new Set([c.env.FRONTEND_ORIGIN, 'http://localhost:4200']);
       return allowed.has(origin) ? origin : null;
     },
-    allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Authorization', 'Content-Type'],
     credentials: true,
   })(c, next),

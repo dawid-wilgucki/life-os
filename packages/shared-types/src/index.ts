@@ -362,3 +362,12 @@ export interface WardrobeSuggestion {
   category: WardrobeSection;
   cached: boolean;
 }
+
+// ============================================================================
+// Shopping list generation result
+// ============================================================================
+
+export interface ShoppingListResult {
+  added: number;
+  skipped: number;
+}

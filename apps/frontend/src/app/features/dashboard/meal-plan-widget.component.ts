@@ -1,6 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import type { MealDay, MealPlan } from '@life-os/shared-types';
+import type { MealDay, MealPlan, ShoppingListResult } from '@life-os/shared-types';
 import { ApiService } from '../../core/api.service';
 
 @Component({
@@ -16,6 +16,14 @@ import { ApiService } from '../../core/api.service';
             <span class="text-[11px] text-slate-500">
               {{ plan()!.generatedAt | date: 'd MMM' }}
             </span>
+            <button
+              class="lo-btn-ghost px-2 text-xs"
+              [disabled]="addingToList()"
+              (click)="addToShoppingList()"
+              title="Dodaj składniki do listy zakupów"
+            >
+              {{ addingToList() ? '…' : '📋' }}
+            </button>
           }
           <button
             class="lo-btn-ghost px-2 text-xs"
@@ -27,6 +35,18 @@ import { ApiService } from '../../core/api.service';
           </button>
         </div>
       </header>
+
+      @if (toast(); as msg) {
+        <p
+          class="mb-2 rounded px-2 py-1 text-xs"
+          [class.bg-green-900]="!msg.startsWith('Błąd')"
+          [class.text-green-300]="!msg.startsWith('Błąd')"
+          [class.bg-red-900]="msg.startsWith('Błąd')"
+          [class.text-red-300]="msg.startsWith('Błąd')"
+        >
+          {{ msg }}
+        </p>
+      }
 
       @if (error()) {
         <p class="text-sm text-red-400">{{ error() }}</p>
@@ -90,8 +110,12 @@ export class MealPlanWidgetComponent implements OnInit {
 
   plan = signal<MealPlan | null>(null);
   loading = signal(false);
+  addingToList = signal(false);
   error = signal<string | null>(null);
+  toast = signal<string | null>(null);
   expandedDay = signal<number | null>(null);
+
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
     this.fetch(false);
@@ -103,6 +127,7 @@ export class MealPlanWidgetComponent implements OnInit {
     this.api.get<MealPlan>('/api/meal-plan', force ? { force: true } : {}).subscribe({
       next: (p) => this.plan.set(p),
       error: (e) => {
+        console.error('meal-plan error:', e);
         const code = e?.error?.error ?? 'unknown';
         const messages: Record<string, string> = {
           gemini_not_configured: 'Brak klucza GEMINI_API_KEY — skonfiguruj go w .dev.vars.',
@@ -122,5 +147,32 @@ export class MealPlanWidgetComponent implements OnInit {
 
   toggle(day: MealDay): void {
     this.expandedDay.update((cur) => (cur === day.day_id ? null : day.day_id));
+  }
+
+  addToShoppingList(): void {
+    this.addingToList.set(true);
+    this.api.post<ShoppingListResult>('/api/meal-plan/generate-shopping-list').subscribe({
+      next: (res) => {
+        this.showToast(`Dodano ${res.added} produktów do listy zakupów${res.skipped ? ` (${res.skipped} już było)` : ''}.`);
+      },
+      error: (e) => {
+        console.error('generate-shopping-list error:', e);
+        const code = e?.error?.error ?? 'unknown';
+        const messages: Record<string, string> = {
+          no_meal_plan: 'Błąd: brak wygenerowanego jadłospisu. Wygeneruj najpierw jadłospis.',
+          shopping_list_not_found: 'Błąd: nie znaleziono listy zakupów w bazie.',
+          gemini_error: 'Błąd połączenia z Gemini. Spróbuj ponownie.',
+        };
+        this.showToast(messages[code] ?? 'Błąd podczas generowania listy zakupów.');
+        this.addingToList.set(false);
+      },
+      complete: () => this.addingToList.set(false),
+    });
+  }
+
+  private showToast(msg: string): void {
+    this.toast.set(msg);
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => this.toast.set(null), 4000);
   }
 }

@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import type { Wardrobe, WardrobeItem } from '@life-os/shared-types';
+import type { Wardrobe, WardrobeItem, WardrobeSection } from '@life-os/shared-types';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { environment } from '../../../environments/environment';
@@ -11,6 +11,7 @@ export class WardrobeService {
 
   readonly wardrobe = signal<Wardrobe | null>(null);
   readonly loading = signal(false);
+  readonly saving = signal(false);
   readonly error = signal<string | null>(null);
 
   load(): void {
@@ -19,10 +20,49 @@ export class WardrobeService {
     this.api.get<Wardrobe>('/api/wardrobe').subscribe({
       next: (w) => this.wardrobe.set(this.withPhotoUrls(w)),
       error: () => {
-        this.error.set('Could not load wardrobe. Is the JSON present in Google Drive?');
+        this.error.set('Nie udało się załadować garderoby. Czy plik JSON jest na Google Drive?');
         this.loading.set(false);
       },
       complete: () => this.loading.set(false),
+    });
+  }
+
+  addItem(section: WardrobeSection, nazwa: string): void {
+    this.saving.set(true);
+    this.error.set(null);
+    this.api.post<Wardrobe>('/api/wardrobe/item', { section, nazwa }).subscribe({
+      next: (w) => this.wardrobe.set(this.withPhotoUrls(w)),
+      error: () => {
+        this.error.set('Błąd podczas dodawania ubrania.');
+        this.saving.set(false);
+      },
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  updateItem(section: WardrobeSection, index: number, nazwa: string): void {
+    this.saving.set(true);
+    this.error.set(null);
+    this.api.patch<Wardrobe>(`/api/wardrobe/item/${section}/${index}`, { nazwa }).subscribe({
+      next: (w) => this.wardrobe.set(this.withPhotoUrls(w)),
+      error: () => {
+        this.error.set('Błąd podczas edytowania ubrania.');
+        this.saving.set(false);
+      },
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  deleteItem(section: WardrobeSection, index: number): void {
+    this.saving.set(true);
+    this.error.set(null);
+    this.api.delete<Wardrobe>(`/api/wardrobe/item/${section}/${index}`).subscribe({
+      next: (w) => this.wardrobe.set(this.withPhotoUrls(w)),
+      error: () => {
+        this.error.set('Błąd podczas usuwania ubrania.');
+        this.saving.set(false);
+      },
+      complete: () => this.saving.set(false),
     });
   }
 
