@@ -13,4 +13,9 @@ GEMINI_API_KEY=AIzaSy...
 # Google Calendar IDs for parent shared calendars (Settings → Calendar ID in Google Calendar)
 PARENT_MOM_CALENDAR_ID=mama@group.calendar.google.com
 PARENT_DAD_CALENDAR_ID=tata@group.calendar.google.com
+# Solarman PV monitoring (globalapi.solarmanpv.com)
+SOLARMAN_APP_ID=312604101536666
+SOLARMAN_APP_SECRET=your-solarman-app-secret
+SOLARMAN_EMAIL=dawidwilgucki08@gmail.com
+SOLARMAN_PASSWORD_SHA256=your-sha256-password
 

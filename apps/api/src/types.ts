@@ -22,6 +22,11 @@ export interface Env {
   /** Google Calendar IDs for shared parent calendars (optional). */
   PARENT_MOM_CALENDAR_ID?: string;
   PARENT_DAD_CALENDAR_ID?: string;
+  // Solarman PV monitoring (globalapi.solarmanpv.com).
+  SOLARMAN_APP_ID: string;
+  SOLARMAN_APP_SECRET: string;
+  SOLARMAN_EMAIL: string;
+  SOLARMAN_PASSWORD_SHA256: string;
 }
 
 /** Per-request values set by middleware and read by route handlers. */
