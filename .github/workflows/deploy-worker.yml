@@ -1,0 +1,35 @@
+name: Deploy Worker
+
+on:
+  push:
+    branches:
+      - main  # lub master — zależnie jak nazywa się Twoja główna gałąź
+    paths:
+      - 'apps/api/**'
+      - 'packages/shared-types/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Worker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: 'apps/api'
+          command: deploy
