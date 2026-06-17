@@ -371,3 +371,18 @@ export interface ShoppingListResult {
   added: number;
   skipped: number;
 }
+
+// ============================================================================
+// Solar (Solarman PV inverter)
+// ============================================================================
+
+export interface SolarData {
+  /** Instantaneous AC output power, in watts. */
+  powerNow: number;
+  /** Energy generated today, in kWh. */
+  energyToday: number;
+  /** Lifetime energy generated, in kWh. */
+  energyTotal: number;
+  status: 'online' | 'offline' | 'alarm';
+  updatedAt: IsoDateTime;
+}
