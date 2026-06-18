@@ -376,13 +376,31 @@ export interface ShoppingListResult {
 // Solar (Solarman PV inverter)
 // ============================================================================
 
-export interface SolarData {
-  /** Instantaneous AC output power, in watts. */
+export type SolarStatus = 'online' | 'offline' | 'alarm' | 'unknown';
+
+export interface SolarCurrentData {
+  /** Instantaneous AC output power, in watts (APo_t1). */
   powerNow: number;
-  /** Energy generated today, in kWh. */
+  /** Energy generated today, in kWh (Etdy_ge1). */
   energyToday: number;
-  /** Lifetime energy generated, in kWh. */
+  /** Lifetime energy generated, in kWh (Et_ge0). */
   energyTotal: number;
-  status: 'online' | 'offline' | 'alarm';
+  status: SolarStatus;
+  /** Radiator temperature, in °C (T_RDT1). */
+  temperature: number;
+  /** PV1 DC voltage, in volts (DV1). */
+  pvVoltage: number;
+  /** PV1 DC current, in amperes (DC1). */
+  pvCurrent: number;
+  /** PV1 DC power, in watts (DP1). */
+  pvPower: number;
+  /** Solarman collectionTime, unix seconds. */
+  collectionTime: number;
   updatedAt: IsoDateTime;
+}
+
+/** Result of forcing a Solarman token refresh (token stays server-side in KV). */
+export interface SolarTokenRefreshResult {
+  success: boolean;
+  expiresIn: number;
 }
