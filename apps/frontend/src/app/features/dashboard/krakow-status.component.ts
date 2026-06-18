@@ -61,8 +61,16 @@ const SOLAR_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
           <span>🌇 Zachód {{ timeOf(weather.sunset()) }}</span>
         }
         @if (solar.status() !== 'unknown') {
-          <span class="font-semibold text-amber-300">⚡ {{ powerLabel() }}</span>
-          <span>📅 {{ energyTodayLabel() }}</span>
+          <span class="font-semibold text-amber-300">
+            ⚡ <span class="font-normal text-slate-400">Moc teraz:</span> {{ powerLabel() }}
+          </span>
+          <span>📅 <span class="text-slate-500">Produkcja dziś:</span> {{ energyTodayLabel() }}</span>
+          @if (solar.energyTotal() !== null) {
+            <span>📊 <span class="text-slate-500">Łącznie:</span> {{ energyTotalLabel() }}</span>
+          }
+          @if (solar.temperature() !== null) {
+            <span>🌡️ <span class="text-slate-500">Inwerter:</span> {{ temperatureLabel() }}</span>
+          }
         }
       </div>
 
@@ -119,6 +127,14 @@ export class KrakowStatusComponent implements OnInit, OnDestroy {
   energyTodayLabel = computed(() => {
     const e = this.solar.energyToday();
     return e !== null ? `${e} kWh` : '— kWh';
+  });
+  energyTotalLabel = computed(() => {
+    const e = this.solar.energyTotal();
+    return e !== null ? `${e.toLocaleString('pl-PL')} kWh` : '— kWh';
+  });
+  temperatureLabel = computed(() => {
+    const t = this.solar.temperature();
+    return t !== null ? `${t} °C` : '— °C';
   });
 
   statusDot = computed(() => {
