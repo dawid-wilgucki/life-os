@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import type { WeatherKind } from './weather.service';
+import type { GeocodingResult } from './weather.service';
 import { WeatherService } from './weather.service';
 import { SolarService } from './solar.service';
 
@@ -19,8 +20,7 @@ const WEATHER_LABEL: Record<WeatherKind, string> = {
   storm: 'Burza',
 };
 
-const LOCATION = 'Bircza';
-const SOLAR_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+const SOLAR_REFRESH_MS = 5 * 60 * 1000;
 
 @Component({
   selector: 'app-krakow-status',
@@ -31,7 +31,44 @@ const SOLAR_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 class="flex items-center gap-1.5 text-lg font-semibold text-slate-200">
-            <span>📍</span> {{ location }}
+            <span>📍</span>
+            @if (!showSearch()) {
+              <span>{{ weather.locationLabel() }}</span>
+              <button
+                class="ml-1 text-sm text-slate-500 transition hover:text-slate-300"
+                title="Zmień lokalizację"
+                (click)="showSearch.set(true)"
+              >🔍</button>
+            } @else {
+              <div class="relative">
+                <input
+                  class="lo-input w-44 text-sm"
+                  placeholder="Szukaj miasta…"
+                  [value]="searchQuery()"
+                  (input)="onSearchInput($event)"
+                  (blur)="onSearchBlur()"
+                  autofocus
+                />
+                @if (searchResults().length) {
+                  <ul class="absolute left-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-lg border border-surface-700 bg-surface-900 shadow-xl">
+                    @for (r of searchResults(); track r.latitude + ',' + r.longitude) {
+                      <li>
+                        <button
+                          class="w-full px-3 py-2 text-left text-sm transition hover:bg-surface-800"
+                          (mousedown)="selectLocation(r)"
+                        >
+                          <span class="font-medium text-slate-200">{{ r.name }}</span>
+                          @if (r.admin1) {
+                            <span class="text-slate-500">, {{ r.admin1 }}</span>
+                          }
+                          <span class="text-slate-500">, {{ r.country }}</span>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
           </h2>
           <div class="text-sm capitalize text-slate-400">{{ dateLabel() }}</div>
         </div>
@@ -110,9 +147,13 @@ export class KrakowStatusComponent implements OnInit, OnDestroy {
   weather = inject(WeatherService);
   solar = inject(SolarService);
 
-  location = LOCATION;
+  showSearch = signal(false);
+  searchQuery = signal('');
+  searchResults = signal<GeocodingResult[]>([]);
+
   private now = signal(new Date());
   private solarTimer?: ReturnType<typeof setInterval>;
+  private searchTimer?: ReturnType<typeof setTimeout>;
 
   dateLabel = computed(() =>
     this.now().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }),
@@ -166,10 +207,49 @@ export class KrakowStatusComponent implements OnInit, OnDestroy {
     this.weather.load();
     this.solar.load();
     this.solarTimer = setInterval(() => this.solar.load(), SOLAR_REFRESH_MS);
+
+    // Silently update location if geolocation is already granted.
+    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          this.weather.saveLocation(pos.coords.latitude, pos.coords.longitude, 'Moja lokalizacja');
+        },
+        () => { /* denied — use saved location or default Bircza */ },
+        { timeout: 8000 },
+      );
+    }
   }
 
   ngOnDestroy(): void {
     if (this.solarTimer) clearInterval(this.solarTimer);
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+  }
+
+  onSearchInput(event: Event): void {
+    const q = (event.target as HTMLInputElement).value;
+    this.searchQuery.set(q);
+    clearTimeout(this.searchTimer);
+    if (!q.trim()) { this.searchResults.set([]); return; }
+    this.searchTimer = setTimeout(() => {
+      this.weather.search(q).subscribe((results) => this.searchResults.set(results));
+    }, 400);
+  }
+
+  onSearchBlur(): void {
+    // Short delay so mousedown on a result fires before blur clears the list.
+    setTimeout(() => {
+      this.showSearch.set(false);
+      this.searchResults.set([]);
+      this.searchQuery.set('');
+    }, 200);
+  }
+
+  selectLocation(r: GeocodingResult): void {
+    const label = r.admin1 ? `${r.name}, ${r.admin1}` : r.name;
+    this.weather.saveLocation(r.latitude, r.longitude, label);
+    this.showSearch.set(false);
+    this.searchResults.set([]);
+    this.searchQuery.set('');
   }
 
   emojiOf(kind: WeatherKind): string {

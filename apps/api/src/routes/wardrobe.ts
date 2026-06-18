@@ -213,6 +213,111 @@ wardrobeRouter.get('/suggestion', async (c) => {
   return c.json({ ...suggestion, cached: false } as WardrobeSuggestion);
 });
 
+const BIRCZA_WEATHER = { latitude: 49.701879, longitude: 22.414214 };
+const OM_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+
+const OUTFIT_PROMPT = `Jesteś osobistym stylistą. Na podstawie garderoby i pogody zaproponuj konkretny outfit na dziś.
+
+ZASADY:
+- Bluzki/koszulki: nie powtarzaj tej samej częściej niż 2 razy w tygodniu
+- Spodnie: mogą powtarzać się do 3 razy w tygodniu
+- Dopasuj do temperatury i warunków atmosferycznych
+- Bądź konkretny: podaj dokładne nazwy ubrań z garderoby
+
+Zwróć WYŁĄCZNIE czysty JSON. Pierwszy znak to "{", ostatni "}".
+Format: {"top":"nazwa bluzki","bottom":"nazwa spodni","shoes":"nazwa butów","note":"1-2 zdania stylistycznego komentarza","temp_range":"np. 18–22°C"}`;
+
+// GET /api/wardrobe/outfit-suggestion — Gemini daily outfit recommendation (cached per day in KV).
+wardrobeRouter.get('/outfit-suggestion', async (c) => {
+  const accountId = c.get('session').sub;
+  const today = new Date().toISOString().slice(0, 10);
+  const cacheKey = `outfit:${accountId}:${today}`;
+  const force = c.req.query('force') === 'true';
+
+  if (!force) {
+    const cached = await c.env.TOKENS.get(cacheKey);
+    if (cached) return c.json({ ...JSON.parse(cached), cached: true });
+  }
+
+  if (!c.env.GEMINI_API_KEY) return c.json({ error: 'gemini_not_configured' }, 503);
+
+  // Fetch current weather using saved location (fallback to Bircza).
+  const locRaw = await c.env.TOKENS.get(`weather_location:${accountId}`);
+  const loc = locRaw ? (JSON.parse(locRaw) as typeof BIRCZA_WEATHER) : BIRCZA_WEATHER;
+  const omUrl = `${OM_BASE_URL}?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,weather_code&timezone=Europe%2FWarsaw`;
+  let weatherDesc = 'brak danych pogodowych';
+  try {
+    const omRes = await fetch(omUrl);
+    if (omRes.ok) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const omData = await omRes.json() as any;
+      const temp = omData?.current?.temperature_2m;
+      if (temp != null) weatherDesc = `${temp}°C`;
+    }
+  } catch { /* ignore */ }
+
+  // Fetch wardrobe from Drive.
+  const fetched = await fetchRawJson(c.env, accountId);
+  if (!fetched) return c.json({ error: 'wardrobe_json_not_found' }, 404);
+  const wardrobe = normalize(fetched.raw);
+
+  // Build wardrobe text list for Gemini prompt.
+  const allItems = (Object.keys(wardrobe) as WardrobeSection[])
+    .flatMap((s) => wardrobe[s].map((i) => `${s}: ${i.nazwa}`))
+    .join('\n');
+
+  // Retrieve last 7 days of suggestions for variety context.
+  const { keys } = await c.env.TOKENS.list({ prefix: `outfit:${accountId}:` });
+  const recentDays = keys
+    .map((k) => k.name)
+    .sort()
+    .slice(-7)
+    .filter((k) => k !== cacheKey);
+  const recentRaw = await Promise.all(recentDays.map((k) => c.env.TOKENS.get(k)));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recentOutfits = recentRaw.flatMap((r) => (r ? [(JSON.parse(r) as any).top] : []));
+  const recentNote = recentOutfits.length
+    ? `\nOstatnio noszone bluzki (unikaj powtórzeń): ${recentOutfits.join(', ')}`
+    : '';
+
+  const userPrompt =
+    `Pogoda dziś: ${weatherDesc}\nMoja garderoba:\n${allItems}${recentNote}`;
+
+  const geminiRes = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${c.env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: OUTFIT_PROMPT }] },
+        contents: [{ parts: [{ text: userPrompt }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.8 },
+      }),
+    },
+  );
+  if (!geminiRes.ok) {
+    const detail = await geminiRes.text();
+    console.error('Gemini outfit error:', geminiRes.status, detail);
+    return c.json({ error: 'gemini_error', status: geminiRes.status, detail }, 502);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const geminiData = (await geminiRes.json()) as any;
+  const rawText: string = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let suggestion: Record<string, any>;
+  try {
+    suggestion = JSON.parse(rawText.trim());
+    if (!suggestion.top || !suggestion.bottom) throw new Error('invalid shape');
+  } catch {
+    return c.json({ error: 'gemini_parse_error', raw: rawText.slice(0, 300) }, 502);
+  }
+
+  await c.env.TOKENS.put(cacheKey, JSON.stringify(suggestion), { expirationTtl: 24 * 3600 });
+  return c.json({ ...suggestion, cached: false });
+});
+
 // GET /api/wardrobe — read the wardrobe JSON from Drive, grouped by section.
 wardrobeRouter.get('/', async (c) => {
   const accountId = c.get('session').sub;

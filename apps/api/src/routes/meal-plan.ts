@@ -84,7 +84,9 @@ mealPlanRouter.get('/', async (c) => {
   );
 
   if (!geminiRes.ok) {
-    return c.json({ error: 'gemini_error', detail: await geminiRes.text() }, 502);
+    const detail = await geminiRes.text();
+    console.error('Gemini error:', geminiRes.status, detail);
+    return c.json({ error: 'gemini_error', status: geminiRes.status, detail }, 502);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

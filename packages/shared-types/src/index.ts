@@ -313,6 +313,9 @@ export interface List {
   id: string;
   title: string;
   pinned: boolean;
+  type: 'list' | 'note';
+  content?: string;
+  orderIndex: number;
   createdAt: IsoDateTime;
 }
 
@@ -370,6 +373,19 @@ export interface WardrobeSuggestion {
 export interface ShoppingListResult {
   added: number;
   skipped: number;
+}
+
+// ============================================================================
+// Outfit Suggestion (Gemini-powered, KV-cached daily)
+// ============================================================================
+
+export interface OutfitSuggestion {
+  top: string;
+  bottom: string;
+  shoes: string;
+  note: string;
+  temp_range: string;
+  cached?: boolean;
 }
 
 // ============================================================================
