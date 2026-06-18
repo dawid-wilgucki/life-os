@@ -18,5 +18,10 @@ id = "4a74d2527203487fbca725ce83b0a159"
 
 # Daily reminders. Cloudflare crons are UTC; the handler computes the real
 # Europe/Warsaw hour to honour the 21:00 habit nudge across DST.
+# Secrets not listed here are set via `wrangler secret put` and locally in .dev.vars.
+# GEMINI_API_KEY — Google AI Studio key (https://aistudio.google.com/app/apikey)
+#   Required for /api/meal-plan and /api/wardrobe/suggestion endpoints.
+#   To set in production: npx wrangler secret put GEMINI_API_KEY
+
 [triggers]
-crons = ["0 6 * * *", "0 19 * * *", "0 20 * * *"]
+crons = ["0 6 * * *", "0 8 * * *", "0 19 * * *", "0 20 * * *"]
