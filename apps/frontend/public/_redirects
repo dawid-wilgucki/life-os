@@ -1,0 +1,4 @@
+# SPA fallback: Angular uses PathLocationStrategy (clean URLs), so deep links
+# and page refreshes on routes like /dashboard must serve index.html.
+# Existing static assets are served first; only unmatched paths fall through.
+/*    /index.html    200
