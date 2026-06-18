@@ -1,13 +1,17 @@
 import { Hono } from 'hono';
-import type { SolarData } from '@life-os/shared-types';
-import type { AppContext } from '../types';
+import type { SolarCurrentData, SolarStatus, SolarTokenRefreshResult } from '@life-os/shared-types';
+import type { AppContext, Env } from '../types';
 import { requireAuth } from '../middleware/auth';
 
 const TOKEN_URL = 'https://globalapi.solarmanpv.com/account/v1.0/token';
 const CURRENT_URL = 'https://globalapi.solarmanpv.com/device/v1.0/currentData';
-const DEVICE_SN = '3504457773';
+// Inverter SN (not the COLLECTOR) — currentData is reported per inverter.
+const INVERTER_SN = 'T620400072248491';
 const TOKEN_KV_KEY = 'solarman_token';
-const TOKEN_TTL = 55 * 24 * 3600; // 55 days — Solarman tokens last ~60d.
+// Fallback TTL if Solarman omits expires_in (~60d token, keep a safety margin).
+const DEFAULT_TTL = 55 * 24 * 3600;
+// Drop the cached token this long before its real expiry.
+const TTL_MARGIN = 3600;
 
 export const solarRouter = new Hono<AppContext>();
 solarRouter.use('*', requireAuth);
@@ -26,13 +30,8 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000
   }
 }
 
-/** Get a Solarman access token from KV cache, or mint+cache a fresh one. */
-async function getToken(env: AppContext['Bindings'], forceRefresh = false): Promise<string | null> {
-  if (!forceRefresh) {
-    const cached = await env.TOKENS.get(TOKEN_KV_KEY);
-    if (cached) return cached;
-  }
-
+/** Mint a fresh token from Solarman and cache it in KV. Returns expiresIn (s) or null. */
+async function mintToken(env: Env): Promise<number | null> {
   const url = `${TOKEN_URL}?appId=${encodeURIComponent(env.SOLARMAN_APP_ID)}&language=en`;
   const res = await fetchWithTimeout(url, {
     method: 'POST',
@@ -48,50 +47,62 @@ async function getToken(env: AppContext['Bindings'], forceRefresh = false): Prom
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = (await res.json()) as any;
   const token: string | undefined = data?.access_token;
-  if (!token) return null;
+  if (!token || data?.success === false) return null;
 
-  await env.TOKENS.put(TOKEN_KV_KEY, token, { expirationTtl: TOKEN_TTL });
-  return token;
+  // expires_in comes back as a string, e.g. "5183999".
+  const expiresIn = Number(data?.expires_in);
+  const ttl = Number.isFinite(expiresIn) && expiresIn > TTL_MARGIN ? expiresIn - TTL_MARGIN : DEFAULT_TTL;
+
+  await env.TOKENS.put(TOKEN_KV_KEY, token, { expirationTtl: ttl });
+  return Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : ttl;
 }
 
-/** Pick the first present, numeric value from a list of candidate keys. */
-function pick(map: Record<string, number>, keys: string[]): number {
-  for (const k of keys) {
-    if (map[k] != null && !Number.isNaN(map[k])) return map[k];
+/** Cached token from KV, or mint a new one (unless forceRefresh). */
+async function getToken(env: Env, forceRefresh = false): Promise<string | null> {
+  if (!forceRefresh) {
+    const cached = await env.TOKENS.get(TOKEN_KV_KEY);
+    if (cached) return cached;
   }
-  return 0;
+  const ok = await mintToken(env);
+  if (ok === null) return null;
+  return env.TOKENS.get(TOKEN_KV_KEY);
 }
 
-// Device-specific dataList keys vary by inverter. These candidate lists are
-// best-effort; confirm against the real currentData response and trim as needed.
-const POWER_KEYS = ['INV_O_P_T', 'APo_t1', 'P_AC', 'AC_POWER', 'SYSTEM_POWER', 'GENERATION_POWER', 'generation_power', 'DC_PW_T'];
-const TODAY_KEYS = ['Etdy_ge0', 'Etdy_ge1', 'DAILY_GENERATION', 'GENERATION_TODAY', 'generation_today', 'daily_generation'];
-const TOTAL_KEYS = ['Et_ge0', 'Et_ge1', 'CUM_GENERATION', 'TOTAL_GENERATION', 'generation_total', 'total_generation'];
-
-function deviceStatus(state: unknown): SolarData['status'] {
-  // Solarman deviceState: 1 = online, 2 = alarm/fault, 3 = offline.
-  if (state === 1) return 'online';
-  if (state === 2) return 'alarm';
-  return 'offline';
+function mapStatus(invStatus: string | undefined, deviceState: unknown): SolarStatus {
+  if (invStatus === 'Grid') return 'online';
+  if (deviceState === 1) return 'online';
+  if (deviceState === 2) return 'alarm';
+  if (deviceState === 3) return 'offline';
+  return 'unknown';
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseCurrent(data: any): SolarData {
+function parseCurrent(data: any): SolarCurrentData {
   const list: any[] = Array.isArray(data?.dataList) ? data.dataList : [];
-  const map: Record<string, number> = {};
+  // Raw string values keyed by Solarman data key.
+  const byKey: Record<string, string> = {};
   for (const it of list) {
-    const v = Number(it?.value);
-    if (it?.key && !Number.isNaN(v)) map[it.key] = v;
+    if (it?.key != null) byKey[it.key] = String(it.value ?? '');
   }
-  const collection = Number(data?.collectionTime);
+  const num = (key: string): number => {
+    const v = Number(byKey[key]);
+    return Number.isFinite(v) ? v : 0;
+  };
+
+  const collectionTime = Number(data?.collectionTime);
+  const validTime = Number.isFinite(collectionTime) && collectionTime > 0;
+
   return {
-    powerNow: pick(map, POWER_KEYS),
-    energyToday: pick(map, TODAY_KEYS),
-    energyTotal: pick(map, TOTAL_KEYS),
-    status: deviceStatus(data?.deviceState),
-    updatedAt: Number.isFinite(collection) && collection > 0
-      ? new Date(collection * 1000).toISOString()
-      : new Date().toISOString(),
+    powerNow: num('APo_t1'),
+    energyToday: num('Etdy_ge1'),
+    energyTotal: num('Et_ge0'),
+    status: mapStatus(byKey['INV_ST1'], data?.deviceState),
+    temperature: num('T_RDT1'),
+    pvVoltage: num('DV1'),
+    pvCurrent: num('DC1'),
+    pvPower: num('DP1'),
+    collectionTime: validTime ? collectionTime : 0,
+    updatedAt: validTime ? new Date(collectionTime * 1000).toISOString() : new Date().toISOString(),
   };
 }
 
@@ -101,15 +112,24 @@ async function fetchCurrent(token: string): Promise<any | null> {
   const res = await fetchWithTimeout(CURRENT_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ deviceSn: DEVICE_SN }),
+    body: JSON.stringify({ deviceSn: INVERTER_SN }),
   });
   if (!res) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = (await res.json()) as any;
-  // Solarman often returns HTTP 200 with success:false on an expired token.
+  // Solarman returns HTTP 200 with success:false on an expired/invalid token.
   if (data?.success === false && !Array.isArray(data?.dataList)) return null;
   return data;
 }
+
+// GET /api/solar/token/refresh — force a new token, store it in KV (token never leaves the server).
+solarRouter.get('/token/refresh', async (c) => {
+  const expiresIn = await mintToken(c.env);
+  if (expiresIn === null) {
+    return c.json({ success: false, expiresIn: 0 } satisfies SolarTokenRefreshResult, 503);
+  }
+  return c.json({ success: true, expiresIn } satisfies SolarTokenRefreshResult);
+});
 
 // GET /api/solar/current — live PV data from Solarman (KV-cached token).
 solarRouter.get('/current', async (c) => {

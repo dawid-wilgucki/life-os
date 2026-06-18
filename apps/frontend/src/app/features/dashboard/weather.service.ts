@@ -11,9 +11,9 @@ export interface DayForecast {
   tempMin: number;
 }
 
-// Kraków, Poland.
-const LAT = 50.0614;
-const LON = 19.9366;
+// Bircza, Poland (PV installation location).
+const LAT = 49.701879;
+const LON = 22.414214;
 const URL =
   `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
   `&current=temperature_2m,weather_code` +
