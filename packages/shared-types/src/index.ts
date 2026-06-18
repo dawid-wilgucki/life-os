@@ -313,6 +313,9 @@ export interface List {
   id: string;
   title: string;
   pinned: boolean;
+  type: 'list' | 'note';
+  content?: string;
+  orderIndex: number;
   createdAt: IsoDateTime;
 }
 
