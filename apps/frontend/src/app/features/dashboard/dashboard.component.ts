@@ -10,6 +10,7 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
 import { KrakowStatusComponent } from './krakow-status.component';
 import { PinnedListsComponent } from './pinned-lists.component';
 import { MealPlanWidgetComponent } from './meal-plan-widget.component';
+import { OutfitSuggestionWidgetComponent } from './outfit-suggestion-widget.component';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -20,7 +21,7 @@ function ymd(d: Date): string {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterLink, DatePipe, PageBackgroundComponent, KrakowStatusComponent, PinnedListsComponent, MealPlanWidgetComponent],
+  imports: [RouterLink, DatePipe, PageBackgroundComponent, KrakowStatusComponent, PinnedListsComponent, MealPlanWidgetComponent, OutfitSuggestionWidgetComponent],
   template: `
     <app-page-background theme="dashboard" />
     <div class="relative mx-auto max-w-5xl p-6">
@@ -28,6 +29,11 @@ function ymd(d: Date): string {
       <p class="text-sm text-slate-400">Your day at a glance.</p>
 
       <app-krakow-status class="mt-6 block" />
+
+      <!-- Outfit suggestion + daily prep (full-width row) -->
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <app-outfit-suggestion-widget />
+      </div>
 
       <div class="mt-4 grid gap-4 lg:grid-cols-2">
         <!-- To-do -->

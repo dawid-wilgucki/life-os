@@ -373,6 +373,19 @@ export interface ShoppingListResult {
 }
 
 // ============================================================================
+// Outfit Suggestion (Gemini-powered, KV-cached daily)
+// ============================================================================
+
+export interface OutfitSuggestion {
+  top: string;
+  bottom: string;
+  shoes: string;
+  note: string;
+  temp_range: string;
+  cached?: boolean;
+}
+
+// ============================================================================
 // Solar (Solarman PV inverter)
 // ============================================================================
 
