@@ -316,6 +316,10 @@ export interface List {
   type: 'list' | 'note';
   content?: string;
   orderIndex: number;
+  /** Locked lists cannot be deleted (only their items can change). */
+  locked: boolean;
+  /** 'google_tasks' lists mirror the user's default Google Tasks list. */
+  source: 'local' | 'google_tasks';
   createdAt: IsoDateTime;
 }
 

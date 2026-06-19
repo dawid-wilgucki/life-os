@@ -45,6 +45,7 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
               (dragend)="onDragEnd()"
             >
               <h3 class="mb-2 truncate text-sm font-medium">
+                @if (list.locked) { <span class="mr-1" title="Zsynchronizowane z Google Tasks">⛓️</span> }
                 @if (list.pinned) { <span class="mr-1">📌</span> }
                 {{ list.type === 'note' ? '📝 ' : '' }}{{ list.title }}
               </h3>
@@ -93,11 +94,15 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
           >
             <header class="mb-4 flex items-center justify-between gap-2">
               <h2 class="truncate text-lg font-medium">{{ selectedList()!.title }}</h2>
-              <div class="flex shrink-0 gap-2">
-                <button
-                  class="lo-btn-ghost text-xs text-red-400 hover:bg-red-900/20 hover:text-red-300"
-                  (click)="deleteList(selectedList()!.id)"
-                >🗑 Usuń</button>
+              <div class="flex shrink-0 items-center gap-2">
+                @if (selectedList()!.locked) {
+                  <span class="text-xs text-slate-500" title="Lista zsynchronizowana z Google Tasks — nie można jej usunąć">⛓️ Google Tasks</span>
+                } @else {
+                  <button
+                    class="lo-btn-ghost text-xs text-red-400 hover:bg-red-900/20 hover:text-red-300"
+                    (click)="deleteList(selectedList()!.id)"
+                  >🗑 Usuń</button>
+                }
                 <button class="lo-btn-ghost text-xs" (click)="closeList()">✕</button>
               </div>
             </header>
