@@ -4,6 +4,7 @@ import type { AppContext, Env } from '../types';
 import { requireAuth } from '../middleware/auth';
 import { googleFetch } from '../lib/google';
 import { verifySession } from '../lib/jwt';
+import { geminiGenerate } from '../lib/gemini';
 
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
@@ -134,8 +135,6 @@ wardrobeRouter.get('/photo/:name', async (c) => {
 
 wardrobeRouter.use('*', requireAuth);
 
-const GEMINI_MODEL = 'gemini-3.5-flash';
-
 const WARDROBE_SUGGEST_PROMPT = `Jesteś ekspertem od mody i stylizacji. Przeanalizuj poniższą listę ubrań i zaproponuj 1 KONKRETNY zakup, który najbardziej uzupełni braki w garderobie.
 
 Zwróć WYŁĄCZNIE czysty JSON (bez Markdown, bez wstępów). Pierwszym znakiem musi być "{", ostatnim "}".
@@ -179,22 +178,19 @@ wardrobeRouter.get('/suggestion', async (c) => {
     .flatMap((s) => wardrobe[s].map((i) => `${s}: ${i.nazwa}`))
     .join('\n');
 
-  const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${c.env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: WARDROBE_SUGGEST_PROMPT }] },
-        contents: [{ parts: [{ text: `Moja garderoba:\n${allItems}` }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.5,
-        },
-      }),
+  const geminiRes = await geminiGenerate(c.env, {
+    system_instruction: { parts: [{ text: WARDROBE_SUGGEST_PROMPT }] },
+    contents: [{ parts: [{ text: `Moja garderoba:\n${allItems}` }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.5,
     },
-  );
-  if (!geminiRes.ok) return c.json({ error: 'gemini_error', detail: await geminiRes.text() }, 502);
+  });
+  if (!geminiRes.ok) {
+    const detail = await geminiRes.text();
+    console.error('Gemini wardrobe-suggest error:', geminiRes.status, detail);
+    return c.json({ error: 'gemini_error', status: geminiRes.status, detail }, 502);
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const geminiData = (await geminiRes.json()) as any;
@@ -283,18 +279,11 @@ wardrobeRouter.get('/outfit-suggestion', async (c) => {
   const userPrompt =
     `Pogoda dziś: ${weatherDesc}\nMoja garderoba:\n${allItems}${recentNote}`;
 
-  const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${c.env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: OUTFIT_PROMPT }] },
-        contents: [{ parts: [{ text: userPrompt }] }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.8 },
-      }),
-    },
-  );
+  const geminiRes = await geminiGenerate(c.env, {
+    system_instruction: { parts: [{ text: OUTFIT_PROMPT }] },
+    contents: [{ parts: [{ text: userPrompt }] }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.8 },
+  });
   if (!geminiRes.ok) {
     const detail = await geminiRes.text();
     console.error('Gemini outfit error:', geminiRes.status, detail);

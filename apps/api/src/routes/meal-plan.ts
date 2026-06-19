@@ -3,8 +3,7 @@ import type { MealPlan } from '@life-os/shared-types';
 import type { AppContext } from '../types';
 import { requireAuth } from '../middleware/auth';
 import { createSupabase } from '../lib/supabase';
-
-const GEMINI_MODEL = 'gemini-3.5-flash';
+import { geminiGenerate } from '../lib/gemini';
 
 export const mealPlanRouter = new Hono<AppContext>();
 mealPlanRouter.use('*', requireAuth);
@@ -67,21 +66,14 @@ mealPlanRouter.get('/', async (c) => {
     ? `Lista zakupów:\n${items.join('\n')}`
     : 'Brak listy zakupów. Zaproponuj 7-dniowy jadłospis oparty na typowych produktach dostępnych w Polsce.';
 
-  const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${c.env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.7,
-        },
-      }),
+  const geminiRes = await geminiGenerate(c.env, {
+    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents: [{ parts: [{ text: userPrompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.7,
     },
-  );
+  });
 
   if (!geminiRes.ok) {
     const detail = await geminiRes.text();
@@ -125,22 +117,19 @@ mealPlanRouter.post('/generate-shopping-list', async (c) => {
 
   if (!c.env.GEMINI_API_KEY) return c.json({ error: 'gemini_not_configured' }, 503);
 
-  const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${c.env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SHOPPING_LIST_PROMPT }] },
-        contents: [{ parts: [{ text: cached }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.3,
-        },
-      }),
+  const geminiRes = await geminiGenerate(c.env, {
+    system_instruction: { parts: [{ text: SHOPPING_LIST_PROMPT }] },
+    contents: [{ parts: [{ text: cached }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.3,
     },
-  );
-  if (!geminiRes.ok) return c.json({ error: 'gemini_error', detail: await geminiRes.text() }, 502);
+  });
+  if (!geminiRes.ok) {
+    const detail = await geminiRes.text();
+    console.error('Gemini shopping-list error:', geminiRes.status, detail);
+    return c.json({ error: 'gemini_error', status: geminiRes.status, detail }, 502);
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const geminiData = (await geminiRes.json()) as any;
