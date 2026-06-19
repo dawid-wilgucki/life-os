@@ -4,7 +4,7 @@ import type { AppContext } from '../types';
 import { requireAuth } from '../middleware/auth';
 import { createSupabase } from '../lib/supabase';
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export const mealPlanRouter = new Hono<AppContext>();
 mealPlanRouter.use('*', requireAuth);

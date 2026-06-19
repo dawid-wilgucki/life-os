@@ -25,23 +25,23 @@ import { ApiService } from '../../core/api.service';
           <div class="h-5 w-2/3 rounded bg-surface-700"></div>
           <div class="mt-2 h-3 w-full rounded bg-surface-700"></div>
         </div>
-      } @else if (outfit(); as o) {
+      } @else if (outfit() !== null) {
         <div class="space-y-1.5">
           <div class="flex items-baseline gap-2">
             <span class="w-5 shrink-0 text-slate-400">👕</span>
-            <span class="text-base font-light text-slate-100">{{ o.top }}</span>
+            <span class="text-base font-light text-slate-100">{{ outfit()!.top }}</span>
           </div>
           <div class="flex items-baseline gap-2">
             <span class="w-5 shrink-0 text-slate-400">👖</span>
-            <span class="text-base font-light text-slate-100">{{ o.bottom }}</span>
+            <span class="text-base font-light text-slate-100">{{ outfit()!.bottom }}</span>
           </div>
           <div class="flex items-baseline gap-2">
             <span class="w-5 shrink-0 text-slate-400">👟</span>
-            <span class="text-base font-light text-slate-100">{{ o.shoes }}</span>
+            <span class="text-base font-light text-slate-100">{{ outfit()!.shoes }}</span>
           </div>
         </div>
-        <p class="mt-2 text-xs italic text-slate-400">{{ o.note }}</p>
-        <div class="mt-1 text-xs text-slate-500">Na dziś: {{ o.temp_range }}</div>
+        <p class="mt-2 text-xs italic text-slate-400">{{ outfit()!.note }}</p>
+        <div class="mt-1 text-xs text-slate-500">Na dziś: {{ outfit()!.temp_range }}</div>
       } @else if (error()) {
         <p class="text-sm text-slate-500">Brak garderoby lub klucza Gemini.</p>
       }
@@ -62,7 +62,7 @@ export class OutfitSuggestionWidgetComponent implements OnInit {
   load(force = false): void {
     this.loading.set(true);
     this.error.set(false);
-    const params = force ? { force: 'true' } : {};
+    const params: Record<string, string> = force ? { force: 'true' } : {};
     this.api.get<OutfitSuggestion>('/api/wardrobe/outfit-suggestion', params).subscribe({
       next: (r) => { this.outfit.set(r); this.loading.set(false); },
       error: () => { this.error.set(true); this.loading.set(false); },
