@@ -1,8 +1,8 @@
 import { Component, OnInit, computed, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import type { CalendarEvent, HabitWithStreak, Trip } from '@life-os/shared-types';
-import { TasksService } from '../tasks/tasks.service';
+import type { CalendarEvent, HabitWithStreak, ListWithItems, Trip } from '@life-os/shared-types';
+import { ListsService } from '../tasks/lists.service';
 import { CalendarService } from '../calendar/calendar.service';
 import { HabitsService } from '../habits/habits.service';
 import { TripsService } from '../trips/trips.service';
@@ -36,23 +36,37 @@ function ymd(d: Date): string {
       </div>
 
       <div class="mt-4 grid gap-4 lg:grid-cols-2">
-        <!-- To-do -->
+        <!-- To-do (the list with the lowest order_index) -->
         <section class="lo-card p-4">
           <header class="mb-3 flex items-center justify-between">
-            <h2 class="font-medium">✅ To-do</h2>
+            <h2 class="font-medium">
+              {{ dashboardList()?.locked ? '⛓️' : '✅' }}
+              {{ dashboardList()?.title ?? 'To-do' }}
+            </h2>
             <a routerLink="/tasks" class="text-xs text-indigo-400 hover:underline">Open tasks →</a>
           </header>
-          <ul class="space-y-1.5">
-            @for (t of openTasks(); track t.id) {
-              <li class="flex items-start gap-2 text-sm">
-                <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500"></span>
-                <span class="flex-1">{{ t.title }}</span>
-                <span class="shrink-0 text-[11px] text-slate-500">{{ t.list }}</span>
-              </li>
-            } @empty {
-              <li class="text-sm text-slate-500">Nothing open. 🎉</li>
+          @if (dashboardList(); as dl) {
+            @if (dl.type === 'note') {
+              <p class="whitespace-pre-wrap text-sm text-slate-300">{{ dl.content || '(pusta notatka)' }}</p>
+            } @else {
+              <ul class="space-y-1.5">
+                @for (item of dl.items; track item.id) {
+                  <li
+                    class="flex items-start gap-2 text-sm"
+                    [class.line-through]="item.checked"
+                    [class.text-slate-500]="item.checked"
+                  >
+                    <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500"></span>
+                    <span class="flex-1">{{ item.text }}</span>
+                  </li>
+                } @empty {
+                  <li class="text-sm text-slate-500">Nothing open. 🎉</li>
+                }
+              </ul>
             }
-          </ul>
+          } @else {
+            <p class="text-sm text-slate-500">Brak list.</p>
+          }
         </section>
 
         <!-- Mini calendar -->
@@ -163,7 +177,7 @@ function ymd(d: Date): string {
   `,
 })
 export class DashboardComponent implements OnInit {
-  private tasks = inject(TasksService);
+  private listsSvc = inject(ListsService);
   private cal = inject(CalendarService);
   private habitsSvc = inject(HabitsService);
   private tripsSvc = inject(TripsService);
@@ -174,7 +188,7 @@ export class DashboardComponent implements OnInit {
   private anchor = new Date();
 
   ngOnInit(): void {
-    this.tasks.loadLists();
+    this.listsSvc.load();
     this.habitsSvc.load();
     this.tripsSvc.load();
     const { start, end } = this.monthRange();
@@ -185,17 +199,8 @@ export class DashboardComponent implements OnInit {
     this.anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
   );
 
-  /** Open tasks across all lists (capped), with their list name. */
-  openTasks = computed(() => {
-    const map = this.tasks.tasksByList();
-    const out: { id: string; title: string; list: string }[] = [];
-    for (const l of this.tasks.lists()) {
-      for (const t of map[l.id] ?? []) {
-        if (t.status !== 'completed') out.push({ id: `${l.id}:${t.id}`, title: t.title, list: l.title });
-      }
-    }
-    return out.slice(0, 8);
-  });
+  /** The list with the lowest order_index — the one surfaced on the dashboard. */
+  dashboardList = computed<ListWithItems | null>(() => this.listsSvc.lists()[0] ?? null);
 
   private eventsByDay = computed(() => {
     const map: Record<string, CalendarEvent[]> = {};
