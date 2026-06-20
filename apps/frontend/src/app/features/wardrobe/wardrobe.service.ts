@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import type { Wardrobe, WardrobeItem, WardrobeSection } from '@life-os/shared-types';
+import type { CreateWardrobeItemInput, Wardrobe, WardrobeItem, WardrobeSection } from '@life-os/shared-types';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { environment } from '../../../environments/environment';
@@ -27,10 +27,10 @@ export class WardrobeService {
     });
   }
 
-  addItem(section: WardrobeSection, nazwa: string): void {
+  addItem(input: CreateWardrobeItemInput): void {
     this.saving.set(true);
     this.error.set(null);
-    this.api.post<Wardrobe>('/api/wardrobe/item', { section, nazwa }).subscribe({
+    this.api.post<Wardrobe>('/api/wardrobe/item', input).subscribe({
       next: (w) => this.wardrobe.set(this.withPhotoUrls(w)),
       error: () => {
         this.error.set('Błąd podczas dodawania ubrania.');

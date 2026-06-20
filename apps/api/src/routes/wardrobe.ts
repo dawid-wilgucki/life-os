@@ -322,7 +322,18 @@ wardrobeRouter.get('/', async (c) => {
 // POST /api/wardrobe/item — add a new item to the Drive JSON.
 wardrobeRouter.post('/item', async (c) => {
   const accountId = c.get('session').sub;
-  const body = await c.req.json<{ section: WardrobeSection; nazwa: string; nazwaPlikuDrive?: string }>();
+  const body = await c.req.json<{
+    section: WardrobeSection;
+    nazwa: string;
+    nazwaPlikuDrive?: string;
+    kolor?: string;
+    rozmiar?: string;
+    marka?: string;
+    material?: string;
+    sezon?: string;
+    stan?: string;
+    notatki?: string;
+  }>();
   if (!SECTIONS.includes(body.section)) return c.json({ error: 'invalid_section' }, 400);
   if (!body.nazwa?.trim()) return c.json({ error: 'nazwa_required' }, 400);
 
@@ -332,15 +343,26 @@ wardrobeRouter.post('/item', async (c) => {
 
   const items = getRawSection(raw, body.section);
   const newItem: Record<string, unknown> = {
+    // Auto-generated id (section initial + timestamp) — clients never send one.
     id: `${body.section.charAt(0).toUpperCase()}${Date.now()}`,
     nazwa: body.nazwa.trim(),
   };
-  if (body.nazwaPlikuDrive) newItem['nazwaPlikuDrive'] = body.nazwaPlikuDrive;
+  // Persist optional metadata only when provided (keeps the JSON tidy).
+  const optional: (keyof typeof body)[] = [
+    'nazwaPlikuDrive', 'kolor', 'rozmiar', 'marka', 'material', 'sezon', 'stan', 'notatki',
+  ];
+  for (const key of optional) {
+    const v = body[key];
+    if (typeof v === 'string' && v.trim()) newItem[key] = v.trim();
+  }
   items.push(newItem);
   setRawSection(raw, body.section, items);
 
   const ok = await writeRawJson(c.env, accountId, fileId, raw);
-  if (!ok) return c.json({ error: 'drive_write_error' }, 502);
+  if (!ok) {
+    console.error('wardrobe: Drive write failed for', WARDROBE_JSON, 'fileId', fileId);
+    return c.json({ error: 'drive_write_error' }, 502);
+  }
 
   return c.json(normalize(raw), 201);
 });

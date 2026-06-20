@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import type { CalendarEvent, HabitWithStreak, ListWithItems, Trip } from '@life-os/shared-types';
@@ -106,10 +106,13 @@ function ymd(d: Date): string {
           <!-- What's coming up (so you know what's on which day at a glance) -->
           <ul class="mt-3 space-y-1.5 border-t border-surface-800 pt-3">
             @for (e of upcomingEvents(); track e.id) {
-              <li class="flex items-baseline gap-2 text-xs">
+              <li
+                class="flex cursor-pointer items-baseline gap-2 rounded px-1 py-1 text-xs transition hover:bg-surface-800"
+                (click)="openEvent(e)"
+              >
                 <span class="w-20 shrink-0 text-slate-400">{{ e.start | date: 'EEE d MMM' }}</span>
                 <span class="shrink-0 text-slate-500">{{ e.allDay ? 'all day' : (e.start | date: 'HH:mm') }}</span>
-                <span class="flex-1 truncate text-slate-200" [title]="e.summary">{{ e.summary }}</span>
+                <span class="min-w-0 flex-1 truncate text-slate-200" [title]="e.summary">{{ e.summary }}</span>
               </li>
             } @empty {
               <li class="text-xs text-slate-500">No upcoming events.</li>
@@ -177,6 +180,51 @@ function ymd(d: Date): string {
         <!-- Meal plan widget: full width on mobile, 1 col on desktop -->
         <app-meal-plan-widget class="lg:col-span-1" />
       </div>
+
+      <!-- Event details + delete modal -->
+      @if (selectedEvent(); as ev) {
+        <div
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          (click)="closeEvent()"
+        >
+          <div class="lo-card w-full max-w-sm p-5" (click)="$event.stopPropagation()">
+            <header class="mb-3 flex items-start justify-between gap-2">
+              <h2 class="min-w-0 break-words text-lg font-medium">{{ ev.summary }}</h2>
+              <button class="lo-btn-ghost shrink-0 px-2 py-1 text-xs" (click)="closeEvent()">✕</button>
+            </header>
+            <dl class="space-y-1.5 text-sm">
+              <div class="flex gap-2">
+                <dt class="w-16 shrink-0 text-slate-500">Kiedy</dt>
+                <dd class="min-w-0 text-slate-200">
+                  {{ ev.start | date: 'EEE d MMM y' }}{{ ev.allDay ? ' (cały dzień)' : ', ' + (ev.start | date: 'HH:mm') }}
+                </dd>
+              </div>
+              @if (ev.location) {
+                <div class="flex gap-2">
+                  <dt class="w-16 shrink-0 text-slate-500">Miejsce</dt>
+                  <dd class="min-w-0 break-words text-slate-200">{{ ev.location }}</dd>
+                </div>
+              }
+              @if (ev.description) {
+                <div class="flex gap-2">
+                  <dt class="w-16 shrink-0 text-slate-500">Opis</dt>
+                  <dd class="min-w-0 break-words text-slate-300">{{ ev.description }}</dd>
+                </div>
+              }
+            </dl>
+            <div class="mt-4 flex justify-end gap-2">
+              <button class="lo-btn-ghost text-sm" (click)="closeEvent()">Zamknij</button>
+              <button
+                class="lo-btn-ghost text-sm text-red-400 hover:bg-red-900/20 hover:text-red-300"
+                [disabled]="deletingEvent()"
+                (click)="deleteEvent(ev.id)"
+              >
+                {{ deletingEvent() ? 'Usuwam…' : '🗑 Usuń' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
 })
@@ -205,6 +253,30 @@ export class DashboardComponent implements OnInit {
 
   /** The list with the lowest order_index — the one surfaced on the dashboard. */
   dashboardList = computed<ListWithItems | null>(() => this.listsSvc.lists()[0] ?? null);
+
+  selectedEvent = signal<CalendarEvent | null>(null);
+  deletingEvent = signal(false);
+
+  openEvent(e: CalendarEvent): void {
+    this.selectedEvent.set(e);
+  }
+
+  closeEvent(): void {
+    this.selectedEvent.set(null);
+  }
+
+  deleteEvent(id: string): void {
+    this.deletingEvent.set(true);
+    this.cal.remove(id).subscribe({
+      next: () => {
+        const { start, end } = this.monthRange();
+        this.cal.loadRange(start, end);
+        this.deletingEvent.set(false);
+        this.closeEvent();
+      },
+      error: () => this.deletingEvent.set(false),
+    });
+  }
 
   private eventsByDay = computed(() => {
     const map: Record<string, CalendarEvent[]> = {};
