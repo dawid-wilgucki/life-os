@@ -10,19 +10,19 @@ import { ApiService } from '../../core/api.service';
   imports: [FormsModule, RouterLink],
   template: `
     @for (list of lists(); track list.id) {
-      <section class="lo-card flex flex-col p-4">
-        <header class="mb-3 flex items-center justify-between">
-          <h2 class="font-medium">📋 {{ list.title }}</h2>
-          <span class="text-xs text-slate-500">
+      <section class="lo-card flex min-w-0 max-w-full flex-col p-4">
+        <header class="mb-3 flex items-center justify-between gap-2">
+          <h2 class="min-w-0 truncate font-medium">📋 {{ list.title }}</h2>
+          <span class="shrink-0 text-xs text-slate-500">
             {{ checkedCount(list) }}/{{ list.items.length }}
           </span>
         </header>
 
         <ul class="flex-1 space-y-1.5 overflow-y-auto">
           @for (item of list.items; track item.id) {
-            <li class="flex items-center gap-2">
+            <li class="flex min-w-0 items-center gap-2">
               <button
-                class="flex h-4 w-4 shrink-0 items-center justify-center rounded border transition"
+                class="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition"
                 [class.border-emerald-500]="item.checked"
                 [class.bg-emerald-500]="item.checked"
                 [class.border-surface-600]="!item.checked"
@@ -31,13 +31,14 @@ import { ApiService } from '../../core/api.service';
                 @if (item.checked) { <span class="text-[10px] text-white">✓</span> }
               </button>
               <span
-                class="flex-1 text-sm"
+                class="min-w-0 flex-1 break-words text-sm"
                 [class.line-through]="item.checked"
                 [class.text-slate-500]="item.checked"
               >{{ item.text }}</span>
               <button
-                class="shrink-0 text-slate-700 transition hover:text-red-400"
+                class="flex h-8 w-8 shrink-0 items-center justify-center text-slate-500 transition hover:text-red-400"
                 (click)="deleteItem(list, item.id)"
+                aria-label="Usuń pozycję"
               >✕</button>
             </li>
           } @empty {
@@ -45,9 +46,9 @@ import { ApiService } from '../../core/api.service';
           }
         </ul>
 
-        <form class="mt-3 flex gap-2 border-t border-surface-800 pt-3" (ngSubmit)="addItem(list)">
+        <form class="mt-3 flex min-w-0 gap-2 border-t border-surface-800 pt-3" (ngSubmit)="addItem(list)">
           <input
-            class="lo-input text-sm"
+            class="lo-input min-w-0 text-sm"
             placeholder="Dodaj pozycję…"
             [(ngModel)]="newItem[list.id]"
             [name]="'item-' + list.id"

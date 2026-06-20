@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import type { WardrobeItem, WardrobeSection } from '@life-os/shared-types';
+import type { WardrobeCondition, WardrobeItem, WardrobeSeason, WardrobeSection } from '@life-os/shared-types';
 import { WardrobeService } from './wardrobe.service';
 import { PageBackgroundComponent } from '../../shared/page-background.component';
 
@@ -21,36 +21,110 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
       </div>
 
       @if (showAddForm()) {
-        <div class="lo-card mb-4 flex flex-wrap items-end gap-3 p-4">
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-slate-400">Sekcja</label>
-            <select
-              class="rounded border border-surface-700 bg-surface-900 px-2 py-1.5 text-sm text-slate-100"
-              [value]="addSection()"
-              (change)="addSection.set($any($event.target).value)"
+        <div class="lo-card mb-4 p-4">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Sekcja</label>
+              <select
+                class="rounded border border-surface-700 bg-surface-900 px-2 py-2 text-sm text-slate-100"
+                [value]="addSection()"
+                (change)="addSection.set($any($event.target).value)"
+              >
+                @for (s of sections; track s.key) {
+                  <option [value]="s.key">{{ s.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Nazwa *</label>
+              <input
+                class="rounded border border-surface-700 bg-surface-900 px-2 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                placeholder="np. Biała koszula Oxford"
+                [value]="addNazwa()"
+                (input)="addNazwa.set($any($event.target).value)"
+                (keydown.enter)="submitAdd()"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Kolor</label>
+              <input
+                class="rounded border border-surface-700 bg-surface-900 px-2 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                placeholder="np. granatowy"
+                [value]="addKolor()"
+                (input)="addKolor.set($any($event.target).value)"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Rozmiar</label>
+              <input
+                class="rounded border border-surface-700 bg-surface-900 px-2 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                placeholder="np. M / 42"
+                [value]="addRozmiar()"
+                (input)="addRozmiar.set($any($event.target).value)"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Marka</label>
+              <input
+                class="rounded border border-surface-700 bg-surface-900 px-2 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                placeholder="np. Zara"
+                [value]="addMarka()"
+                (input)="addMarka.set($any($event.target).value)"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Materiał</label>
+              <input
+                class="rounded border border-surface-700 bg-surface-900 px-2 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                placeholder="np. bawełna"
+                [value]="addMaterial()"
+                (input)="addMaterial.set($any($event.target).value)"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Sezon</label>
+              <select
+                class="rounded border border-surface-700 bg-surface-900 px-2 py-2 text-sm text-slate-100"
+                [value]="addSezon()"
+                (change)="addSezon.set($any($event.target).value)"
+              >
+                @for (s of seasons; track s.key) {
+                  <option [value]="s.key">{{ s.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Stan</label>
+              <select
+                class="rounded border border-surface-700 bg-surface-900 px-2 py-2 text-sm text-slate-100"
+                [value]="addStan()"
+                (change)="addStan.set($any($event.target).value)"
+              >
+                @for (s of conditions; track s.key) {
+                  <option [value]="s.key">{{ s.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="flex flex-col gap-1 sm:col-span-2 lg:col-span-3">
+              <label class="text-xs text-slate-400">Notatki</label>
+              <textarea
+                class="rounded border border-surface-700 bg-surface-900 px-2 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                rows="2"
+                placeholder="np. prezent, do podszycia…"
+                [value]="addNotatki()"
+                (input)="addNotatki.set($any($event.target).value)"
+              ></textarea>
+            </div>
+          </div>
+          <div class="mt-3 flex justify-end">
+            <button
+              class="lo-btn px-4 py-2 text-sm"
+              [disabled]="!addNazwa().trim() || wardrobe.saving()"
+              (click)="submitAdd()"
             >
-              @for (s of sections; track s.key) {
-                <option [value]="s.key">{{ s.label }}</option>
-              }
-            </select>
+              {{ wardrobe.saving() ? '…' : 'Dodaj ubranie' }}
+            </button>
           </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-slate-400">Nazwa</label>
-            <input
-              class="rounded border border-surface-700 bg-surface-900 px-2 py-1.5 text-sm text-slate-100 placeholder:text-slate-600"
-              placeholder="np. Biała koszula Oxford"
-              [value]="addNazwa()"
-              (input)="addNazwa.set($any($event.target).value)"
-              (keydown.enter)="submitAdd()"
-            />
-          </div>
-          <button
-            class="lo-btn-ghost px-3 py-1.5 text-sm"
-            [disabled]="!addNazwa().trim() || wardrobe.saving()"
-            (click)="submitAdd()"
-          >
-            {{ wardrobe.saving() ? '…' : 'Dodaj' }}
-          </button>
         </div>
       }
 
@@ -85,6 +159,7 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
                         [src]="item.photoUrl"
                         [alt]="item.nazwa"
                         loading="lazy"
+                        decoding="async"
                         class="h-full w-full object-cover"
                       />
                     } @else {
@@ -133,9 +208,30 @@ export class WardrobeComponent implements OnInit {
     { key: 'silownia', label: 'Siłownia' },
   ];
 
+  seasons: { key: WardrobeSeason; label: string }[] = [
+    { key: 'caloroczny', label: 'Całoroczny' },
+    { key: 'wiosna', label: 'Wiosna' },
+    { key: 'lato', label: 'Lato' },
+    { key: 'jesien', label: 'Jesień' },
+    { key: 'zima', label: 'Zima' },
+  ];
+
+  conditions: { key: WardrobeCondition; label: string }[] = [
+    { key: 'nowe', label: 'Nowe' },
+    { key: 'uzywane', label: 'Używane' },
+    { key: 'vintage', label: 'Vintage' },
+  ];
+
   showAddForm = signal(false);
   addSection = signal<WardrobeSection>('gora');
   addNazwa = signal('');
+  addKolor = signal('');
+  addRozmiar = signal('');
+  addMarka = signal('');
+  addMaterial = signal('');
+  addSezon = signal<WardrobeSeason>('caloroczny');
+  addStan = signal<WardrobeCondition>('nowe');
+  addNotatki = signal('');
   editingItemId = signal<string | null>(null);
   editingNazwa = signal('');
 
@@ -149,14 +245,35 @@ export class WardrobeComponent implements OnInit {
 
   toggleAddForm(): void {
     this.showAddForm.update((v) => !v);
+    this.resetAddForm();
+  }
+
+  private resetAddForm(): void {
     this.addNazwa.set('');
+    this.addKolor.set('');
+    this.addRozmiar.set('');
+    this.addMarka.set('');
+    this.addMaterial.set('');
+    this.addSezon.set('caloroczny');
+    this.addStan.set('nowe');
+    this.addNotatki.set('');
   }
 
   submitAdd(): void {
     const nazwa = this.addNazwa().trim();
     if (!nazwa) return;
-    this.wardrobe.addItem(this.addSection(), nazwa);
-    this.addNazwa.set('');
+    this.wardrobe.addItem({
+      section: this.addSection(),
+      nazwa,
+      kolor: this.addKolor().trim() || undefined,
+      rozmiar: this.addRozmiar().trim() || undefined,
+      marka: this.addMarka().trim() || undefined,
+      material: this.addMaterial().trim() || undefined,
+      sezon: this.addSezon(),
+      stan: this.addStan(),
+      notatki: this.addNotatki().trim() || undefined,
+    });
+    this.resetAddForm();
     this.showAddForm.set(false);
   }
 

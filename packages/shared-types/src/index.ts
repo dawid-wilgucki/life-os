@@ -179,6 +179,9 @@ export type WardrobeSection =
   | 'bielizna_i_dodatki'
   | 'silownia';
 
+export type WardrobeSeason = 'wiosna' | 'lato' | 'jesien' | 'zima' | 'caloroczny';
+export type WardrobeCondition = 'nowe' | 'uzywane' | 'vintage';
+
 export interface WardrobeItem {
   id: string;
   nazwa: string;
@@ -187,7 +190,28 @@ export interface WardrobeItem {
   nazwaPlikuDrive?: string;
   /** Convenience URL the frontend can use directly: /api/wardrobe/photo/:fileId. */
   photoUrl?: string;
+  kolor?: string;
+  rozmiar?: string;
+  marka?: string;
+  material?: string;
+  sezon?: WardrobeSeason;
+  stan?: WardrobeCondition;
+  notatki?: string;
   [extra: string]: unknown;
+}
+
+/** Payload accepted by POST /api/wardrobe/item (id is generated server-side). */
+export interface CreateWardrobeItemInput {
+  section: WardrobeSection;
+  nazwa: string;
+  nazwaPlikuDrive?: string;
+  kolor?: string;
+  rozmiar?: string;
+  marka?: string;
+  material?: string;
+  sezon?: WardrobeSeason;
+  stan?: WardrobeCondition;
+  notatki?: string;
 }
 
 export type Wardrobe = Record<WardrobeSection, WardrobeItem[]>;

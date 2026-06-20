@@ -7,8 +7,13 @@
   body {
     @apply h-full;
   }
+  /* One consistent app-wide background (subtle dark navy gradient, fixed).
+     No per-page images/textures — see PageBackgroundComponent (accent only). */
   body {
-    @apply bg-surface-950 text-slate-100 antialiased;
+    @apply text-slate-100 antialiased;
+    background-color: #0b1120;
+    background-image: radial-gradient(1200px 820px at 50% -10%, #131c30 0%, #0b1120 58%, #070b14 100%);
+    background-attachment: fixed;
   }
 }
 

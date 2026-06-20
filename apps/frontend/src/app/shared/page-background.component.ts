@@ -35,24 +35,14 @@ const THEMES: Record<BgTheme, ThemeCfg> = {
 };
 
 /**
- * Full-screen minimalist vector-art wallpaper behind a page, plus a flat dark
- * wash so text outside the glass cards stays readable. Also publishes the
- * page's accent colour as the CSS var --page-accent (used by flat buttons).
+ * Publishes the page's accent colour as the CSS var --page-accent (used by flat
+ * buttons / active states). The app now uses a single global background
+ * (see styles.css), so this component no longer paints a per-page wallpaper.
  */
 @Component({
   selector: 'app-page-background',
   standalone: true,
-  template: `
-    <div class="pointer-events-none fixed inset-0 -z-10 bg-slate-950">
-      <div
-        class="absolute inset-0 bg-cover bg-no-repeat"
-        [style.background-image]="'url(' + cfg().img + ')'"
-        [style.background-position]="cfg().position"
-      ></div>
-      <!-- flat dark wash (no gradient) for legibility outside cards -->
-      <div class="absolute inset-0" style="background: rgba(2, 6, 23, 0.55)"></div>
-    </div>
-  `,
+  template: '',
 })
 export class PageBackgroundComponent {
   theme = input.required<BgTheme>();
