@@ -393,6 +393,34 @@ export interface OutfitSuggestion {
 }
 
 // ============================================================================
+// Day Plan (Gemini-powered, KV-cached hourly)
+// ============================================================================
+
+export interface DayPlanAlert {
+  /** 'warning' for things that look missing or need checking. */
+  type: string;
+  message: string;
+}
+
+export interface DayPlanItem {
+  order: number;
+  type: 'task' | 'habit' | 'alert';
+  title: string;
+  duration_min: number;
+  reason: string;
+  source: 'google_tasks' | 'habit_tracker' | 'ai_generated' | string;
+}
+
+export interface DayPlan {
+  /** HH:MM the plan was generated. */
+  generated_at: string;
+  summary: string;
+  alerts: DayPlanAlert[];
+  plan: DayPlanItem[];
+  cached?: boolean;
+}
+
+// ============================================================================
 // Solar (Solarman PV inverter)
 // ============================================================================
 
