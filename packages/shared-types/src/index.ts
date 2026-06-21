@@ -150,10 +150,51 @@ export interface GoldAlert {
 }
 
 export interface GoldStatus {
+  /** Live SPOT, PLN per gram of .999 gold (NBP cenyzlota). */
   spot: number;
   currency: string;
+  /** NBP quote date for this SPOT, e.g. "2026-06-10". */
+  asOf?: string;
   alerts: GoldAlert[];
-  /** True when the data is mocked because the upstream worker was unavailable. */
+  /** True when the data is mocked because the upstream source was unavailable. */
+  mock?: boolean;
+}
+
+/**
+ * Premium calculator result (POST /api/investments/gold/check).
+ * Mirrors the gold-tracker worker's `isOpportunity` thresholds.
+ */
+export interface GoldCheckResult {
+  /** Offer price in PLN. */
+  price: number;
+  /** Pure gold content in grams. */
+  weightGrams: number;
+  /** SPOT PLN/g used for the calculation. */
+  spotPerGram: number;
+  /** Fair gold value = weightGrams × spotPerGram. */
+  spotValue: number;
+  /** Premium over SPOT, percent. */
+  overSpotPct: number;
+  /** Max premium % for the price tier, or null when out of the tracker's range. */
+  threshold: number | null;
+  /** True when overSpotPct is within the tier threshold. */
+  isOpportunity: boolean;
+  /** Human label for the matched price tier. */
+  tier: string;
+  mock?: boolean;
+}
+
+/**
+ * Result of a manual gold-tracker run (POST /api/investments/gold/run).
+ * Triggers the worker's full check (scrape + Telegram alerts) and returns its counters.
+ */
+export interface GoldRunResult {
+  /** Offers inspected by the worker. */
+  checked: number;
+  /** New alerts the worker pushed to Telegram. */
+  alertsSent: number;
+  /** SPOT PLN/g reported by the worker, or null if unavailable. */
+  spotPerGram: number | null;
   mock?: boolean;
 }
 
