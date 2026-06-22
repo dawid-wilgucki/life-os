@@ -61,6 +61,11 @@ export const routes: Routes = [
             (m) => m.SubscriptionsComponent,
           ),
       },
+      {
+        path: 'chat',
+        loadComponent: () =>
+          import('./features/chat/chat.component').then((m) => m.ChatComponent),
+      },
     ],
   },
   { path: '**', redirectTo: '' },
