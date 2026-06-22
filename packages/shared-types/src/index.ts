@@ -445,6 +445,26 @@ export interface DayPlan {
 }
 
 // ============================================================================
+// Chat (AI assistant with live context + actions)
+// ============================================================================
+
+export type ChatRole = 'user' | 'model';
+
+export interface ChatMessage {
+  role: ChatRole;
+  text: string;
+}
+
+export interface ChatRequest {
+  messages: ChatMessage[];
+}
+
+export interface ChatResponse {
+  reply: string;
+  actions_taken: string[];
+}
+
+// ============================================================================
 // Solar (Solarman PV inverter)
 // ============================================================================
 
