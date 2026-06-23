@@ -16,6 +16,12 @@ import { DayPlanWidgetComponent } from './day-plan-widget.component';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+const SECTION_LABELS: Record<string, string> = {
+  praca: '💼 Praca', dom: '🏠 Dom', cele: '🎯 Cele',
+  zdrowie: '🏥 Zdrowie', relacje: '👥 Relacje', finanse: '💰 Finanse',
+  projekty: '🚀 Projekty', inne: '📝 Inne',
+};
+
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -247,12 +253,6 @@ function ymd(d: Date): string {
     </div>
   `,
 })
-const SECTION_LABELS: Record<string, string> = {
-  praca: '💼 Praca', dom: '🏠 Dom', cele: '🎯 Cele',
-  zdrowie: '🏥 Zdrowie', relacje: '👥 Relacje', finanse: '💰 Finanse',
-  projekty: '🚀 Projekty', inne: '📝 Inne',
-};
-
 export class DashboardComponent implements OnInit {
   private listsSvc = inject(ListsService);
   private cal = inject(CalendarService);
