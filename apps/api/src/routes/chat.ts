@@ -7,6 +7,8 @@ import { geminiGenerate } from '../lib/gemini';
 
 const TASKS_API = 'https://tasks.googleapis.com/tasks/v1';
 const CAL_API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+/** Context is cached in KV for this many seconds to avoid redundant API calls. */
+const CTX_TTL = 120;
 
 type SupabaseClient = ReturnType<typeof createSupabase>;
 
@@ -25,9 +27,22 @@ function warsawTime(d: Date): string {
   }).format(d);
 }
 
+interface ChatContext {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tasks: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  taskLists: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  events: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  habits: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  inbox: any[];
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchTasks(env: Env, accountId: string): Promise<any[]> {
-  const url = `${TASKS_API}/lists/@default/tasks?showCompleted=false&maxResults=100`;
+  const url = `${TASKS_API}/lists/@default/tasks?showCompleted=false&maxResults=50`;
   const res = await googleFetch(env, accountId, url);
   if (!res.ok) return [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,7 +68,7 @@ async function fetchEvents(env: Env, accountId: string): Promise<any[]> {
   const timeMax = new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString();
   const url =
     `${CAL_API}?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}` +
-    `&singleEvents=true&orderBy=startTime&maxResults=50`;
+    `&singleEvents=true&orderBy=startTime&maxResults=30`;
   const res = await googleFetch(env, accountId, url);
   if (!res.ok) return [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,10 +110,39 @@ async function fetchInbox(supabase: SupabaseClient): Promise<any[]> {
     .select('id, text, captured_at')
     .eq('status', 'new')
     .order('captured_at', { ascending: false })
-    .limit(20);
+    .limit(15);
   return (data ?? []).map((i) => ({ id: i.id, text: i.text, capturedAt: i.captured_at }));
 }
 
+async function loadContext(
+  env: Env,
+  accountId: string,
+  today: string,
+  supabase: SupabaseClient,
+): Promise<ChatContext> {
+  const cacheKey = `chat-ctx:${accountId}:${today}`;
+  const cached = await env.TOKENS.get(cacheKey);
+  if (cached) return JSON.parse(cached) as ChatContext;
+
+  const [tasks, taskLists, events, habits, inbox] = await Promise.all([
+    fetchTasks(env, accountId),
+    fetchTaskLists(env, accountId),
+    fetchEvents(env, accountId),
+    fetchHabits(supabase, today),
+    fetchInbox(supabase),
+  ]);
+
+  const ctx: ChatContext = { tasks, taskLists, events, habits, inbox };
+  await env.TOKENS.put(cacheKey, JSON.stringify(ctx), { expirationTtl: CTX_TTL });
+  return ctx;
+}
+
+/** Call after any mutating tool to force a fresh context fetch on the next message. */
+async function invalidateContext(env: Env, accountId: string, today: string): Promise<void> {
+  await env.TOKENS.delete(`chat-ctx:${accountId}:${today}`);
+}
+
+/** Returns the tool result string. `mutated` true means app data changed. */
 async function executeTool(
   name: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -107,23 +151,24 @@ async function executeTool(
   accountId: string,
   supabase: SupabaseClient,
   today: string,
-): Promise<string> {
+): Promise<{ result: string; mutated: boolean }> {
   try {
     if (name === 'add_inbox_item') {
       const text = String(args.text ?? '').trim();
-      if (!text) return 'Błąd: brak tekstu.';
+      if (!text) return { result: 'Błąd: brak tekstu.', mutated: false };
       const { error } = await supabase
         .from('inbox_items')
         .insert({ text, source: 'web', status: 'new' });
-      if (error) return `Błąd bazy: ${error.message}`;
-      return `Dodano do inboxa: "${text}"`;
+      if (error) return { result: `Błąd bazy: ${error.message}`, mutated: false };
+      return { result: `Dodano do inboxa: "${text}"`, mutated: true };
     }
 
     if (name === 'create_calendar_event') {
       const summary = String(args.summary ?? '').trim();
       const start = String(args.start ?? '').trim();
       const end = String(args.end ?? '').trim();
-      if (!summary || !start || !end) return 'Błąd: brak wymaganych pól (summary, start, end).';
+      if (!summary || !start || !end)
+        return { result: 'Błąd: brak wymaganych pól (summary, start, end).', mutated: false };
       const allDay = start.length === 10;
       const times = allDay
         ? { start: { date: start }, end: { date: end } }
@@ -133,28 +178,36 @@ async function executeTool(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ summary, description: args.description ?? '', ...times }),
       });
-      if (!res.ok) return `Błąd Google Calendar: ${await res.text()}`;
-      return `Dodano wydarzenie: "${summary}" (${start})`;
+      if (!res.ok)
+        return { result: `Błąd Google Calendar: ${await res.text()}`, mutated: false };
+      return { result: `Dodano wydarzenie: "${summary}" (${start})`, mutated: true };
     }
 
     if (name === 'check_habit') {
       const habitName = String(args.habit_name ?? '').trim().toLowerCase();
-      const { data: habits } = await supabase.from('habits').select('id, name').eq('active', true);
+      const { data: habits } = await supabase
+        .from('habits')
+        .select('id, name')
+        .eq('active', true);
       const habit = (habits ?? []).find((h) =>
         (h.name as string).toLowerCase().includes(habitName),
       );
-      if (!habit) return `Nie znaleziono nawyku pasującego do: "${habitName}"`;
+      if (!habit)
+        return {
+          result: `Nie znaleziono nawyku pasującego do: "${habitName}"`,
+          mutated: false,
+        };
       const { error } = await supabase
         .from('habit_checks')
         .upsert({ habit_id: habit.id, date: today }, { onConflict: 'habit_id,date' });
-      if (error) return `Błąd bazy: ${error.message}`;
-      return `Zaznaczono nawyk "${habit.name}" jako wykonany dziś.`;
+      if (error) return { result: `Błąd bazy: ${error.message}`, mutated: false };
+      return { result: `Zaznaczono nawyk "${habit.name}" jako wykonany dziś.`, mutated: true };
     }
 
     if (name === 'create_task') {
       const title = String(args.title ?? '').trim();
       const listId = String(args.list_id ?? '@default').trim() || '@default';
-      if (!title) return 'Błąd: brak tytułu zadania.';
+      if (!title) return { result: 'Błąd: brak tytułu zadania.', mutated: false };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const taskBody: Record<string, any> = { title };
       if (args.due) taskBody.due = String(args.due);
@@ -169,13 +222,13 @@ async function executeTool(
           body: JSON.stringify(taskBody),
         },
       );
-      if (!res.ok) return `Błąd Google Tasks: ${await res.text()}`;
-      return `Utworzono zadanie: "${title}"`;
+      if (!res.ok) return { result: `Błąd Google Tasks: ${await res.text()}`, mutated: false };
+      return { result: `Utworzono zadanie: "${title}"`, mutated: true };
     }
 
-    return `Nieznana akcja: ${name}`;
+    return { result: `Nieznana akcja: ${name}`, mutated: false };
   } catch (err) {
-    return `Błąd wykonania: ${String(err)}`;
+    return { result: `Błąd wykonania: ${String(err)}`, mutated: false };
   }
 }
 
@@ -258,7 +311,7 @@ const TOOLS = [
   },
 ];
 
-// POST /api/chat — conversational AI with access to live app context + action tools.
+// POST /api/chat — conversational AI with live context (KV-cached 2 min) + action tools.
 chatRouter.post('/', async (c) => {
   if (!c.env.GEMINI_API_KEY) return c.json({ error: 'gemini_not_configured' }, 503);
 
@@ -276,23 +329,23 @@ chatRouter.post('/', async (c) => {
   const today = ymd(now);
   const supabase = createSupabase(c.env);
 
-  const [tasks, taskLists, events, habits, inbox] = await Promise.all([
-    fetchTasks(c.env, accountId),
-    fetchTaskLists(c.env, accountId),
-    fetchEvents(c.env, accountId),
-    fetchHabits(supabase, today),
-    fetchInbox(supabase),
-  ]);
+  // Load context from KV cache (or fetch fresh if expired/missing).
+  const { tasks, taskLists, events, habits, inbox } = await loadContext(
+    c.env,
+    accountId,
+    today,
+    supabase,
+  );
 
   const systemPrompt = `Jesteś osobistym asystentem w aplikacji Life.OS. Rozmawiasz po polsku.
-Masz dostęp do danych użytkownika w czasie rzeczywistym i możesz wykonywać akcje w jego imieniu.
+Masz dostęp do danych użytkownika i możesz wykonywać akcje w jego imieniu.
 
 AKTUALNY KONTEKST (${warsawTime(now)}):
 
 ZADANIA (${tasks.length}):
 ${tasks.length ? tasks.map((t) => `- ${t.title}${t.due ? ` (termin: ${t.due.slice(0, 10)})` : ''}${t.notes ? ` | ${t.notes}` : ''}`).join('\n') : 'Brak aktywnych zadań.'}
 
-LISTY ZADAŃ (do tworzenia zadań):
+LISTY ZADAŃ:
 ${taskLists.length ? taskLists.map((l) => `- "${l.title}" → id: ${l.id}`).join('\n') : 'Brak list.'}
 
 WYDARZENIA KALENDARZOWE — najbliższe 7 dni (${events.length}):
@@ -311,7 +364,6 @@ ZASADY:
 - Nie wymyślaj danych — bazuj wyłącznie na kontekście powyżej.
 - Po wykonaniu akcji potwierdź co zostało zrobione.`;
 
-  // Build Gemini content from conversation history
   let currentContents = body.messages.map((m) => ({
     role: m.role,
     parts: [{ text: m.text }],
@@ -336,6 +388,7 @@ ZASADY:
   let candidate: any = geminiData?.candidates?.[0]?.content;
 
   const actionsTaken: string[] = [];
+  let contextDirty = false;
 
   // Agentic loop: execute tool calls until Gemini returns a text response (max 5 rounds).
   for (let round = 0; round < 5; round++) {
@@ -347,8 +400,16 @@ ZASADY:
       name: string;
       args: Record<string, unknown>;
     };
-    const result = await executeTool(name, args ?? {}, c.env, accountId, supabase, today);
+    const { result, mutated } = await executeTool(
+      name,
+      args ?? {},
+      c.env,
+      accountId,
+      supabase,
+      today,
+    );
     actionsTaken.push(result);
+    if (mutated) contextDirty = true;
 
     currentContents = [
       ...currentContents,
@@ -369,8 +430,15 @@ ZASADY:
       return c.json({ error: 'gemini_error', detail }, 502);
     }
 
-    geminiData = (await geminiRes.json()) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    geminiData = (await geminiRes.json()) as any;
     candidate = geminiData?.candidates?.[0]?.content;
+  }
+
+  // Invalidate the context cache if any action mutated app data, so the next
+  // message fetches fresh state (e.g., the just-added inbox item is visible).
+  if (contextDirty) {
+    await invalidateContext(c.env, accountId, today);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
