@@ -18,6 +18,7 @@ import { solarRouter } from './routes/solar';
 import { weatherRouter } from './routes/weather';
 import { dayPlanRouter } from './routes/day-plan';
 import { chatRouter } from './routes/chat';
+import { profileRouter } from './routes/profile';
 import { handleScheduled } from './cron';
 
 const app = new Hono<AppContext>();
@@ -58,6 +59,7 @@ app.route('/api/solar', solarRouter);
 app.route('/api/weather', weatherRouter);
 app.route('/api/day-plan', dayPlanRouter);
 app.route('/api/chat', chatRouter);
+app.route('/api/profile', profileRouter);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 app.onError((err, c) => {

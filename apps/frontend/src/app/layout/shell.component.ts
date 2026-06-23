@@ -90,6 +90,7 @@ export class ShellComponent {
     { path: 'habits', label: 'Habits', icon: '🔥' },
     { path: 'subscriptions', label: 'Subscriptions', icon: '💳' },
     { path: 'chat', label: 'Asystent AI', icon: '✨' },
+    { path: 'profile', label: 'O mnie', icon: '👤' },
   ];
 
   toggleSidebar(): void {
