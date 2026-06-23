@@ -1,11 +1,12 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import type { CalendarEvent, HabitWithStreak, ListWithItems, Trip } from '@life-os/shared-types';
+import type { CalendarEvent, HabitWithStreak, LifeProfile, ListWithItems, Trip } from '@life-os/shared-types';
 import { ListsService } from '../tasks/lists.service';
 import { CalendarService } from '../calendar/calendar.service';
 import { HabitsService } from '../habits/habits.service';
 import { TripsService } from '../trips/trips.service';
+import { ApiService } from '../../core/api.service';
 import { PageBackgroundComponent } from '../../shared/page-background.component';
 import { KrakowStatusComponent } from './krakow-status.component';
 import { PinnedListsComponent } from './pinned-lists.component';
@@ -171,6 +172,24 @@ function ymd(d: Date): string {
         </section>
       </div>
 
+      <!-- Life Profile snippet -->
+      @if (profileSnippet().length) {
+        <section class="lo-card mt-4 p-4">
+          <header class="mb-3 flex items-center justify-between">
+            <h2 class="font-medium">👤 Mój profil</h2>
+            <a routerLink="/profile" class="text-xs text-indigo-400 hover:underline">Edytuj →</a>
+          </header>
+          <ul class="space-y-1.5">
+            @for (s of profileSnippet(); track s.key) {
+              <li class="flex gap-2 text-sm">
+                <span class="w-24 shrink-0 text-slate-500">{{ s.label }}</span>
+                <span class="min-w-0 flex-1 truncate text-slate-300" [title]="s.value">{{ s.value }}</span>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
       <!-- Pinned lists (up to 2) + meal plan — second row -->
       <div class="mt-4 grid gap-4 lg:grid-cols-3">
         <!-- Pinned lists occupy 2 columns on desktop -->
@@ -228,16 +247,35 @@ function ymd(d: Date): string {
     </div>
   `,
 })
+const SECTION_LABELS: Record<string, string> = {
+  praca: '💼 Praca', dom: '🏠 Dom', cele: '🎯 Cele',
+  zdrowie: '🏥 Zdrowie', relacje: '👥 Relacje', finanse: '💰 Finanse',
+  projekty: '🚀 Projekty', inne: '📝 Inne',
+};
+
 export class DashboardComponent implements OnInit {
   private listsSvc = inject(ListsService);
   private cal = inject(CalendarService);
   private habitsSvc = inject(HabitsService);
   private tripsSvc = inject(TripsService);
+  private api = inject(ApiService);
 
   weekdays = WEEKDAYS;
   habits = this.habitsSvc.habits;
 
   private anchor = new Date();
+  private profileSections = signal<Record<string, string>>({});
+
+  profileSnippet = computed(() =>
+    Object.entries(this.profileSections())
+      .filter(([, v]) => v && v.trim().length > 0)
+      .slice(0, 3)
+      .map(([key, value]) => ({
+        key,
+        label: SECTION_LABELS[key] ?? key,
+        value: value.length > 80 ? value.slice(0, 80) + '…' : value,
+      })),
+  );
 
   ngOnInit(): void {
     this.listsSvc.load();
@@ -245,6 +283,9 @@ export class DashboardComponent implements OnInit {
     this.tripsSvc.load();
     const { start, end } = this.monthRange();
     this.cal.loadRange(start, end);
+    this.api.get<LifeProfile>('/api/profile').subscribe({
+      next: (p) => this.profileSections.set(p.sections ?? {}),
+    });
   }
 
   monthLabel = computed(() =>

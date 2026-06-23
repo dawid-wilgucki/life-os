@@ -38,6 +38,7 @@ interface ChatContext {
   habits: any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   inbox: any[];
+  profileSections: Record<string, string>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,6 +104,15 @@ async function fetchHabits(supabase: SupabaseClient, today: string): Promise<any
   }));
 }
 
+async function fetchProfileSections(supabase: SupabaseClient): Promise<Record<string, string>> {
+  const { data } = await supabase
+    .from('life_profile')
+    .select('sections')
+    .eq('id', 1)
+    .single();
+  return (data?.sections as Record<string, string>) ?? {};
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchInbox(supabase: SupabaseClient): Promise<any[]> {
   const { data } = await supabase
@@ -124,15 +134,16 @@ async function loadContext(
   const cached = await env.TOKENS.get(cacheKey);
   if (cached) return JSON.parse(cached) as ChatContext;
 
-  const [tasks, taskLists, events, habits, inbox] = await Promise.all([
+  const [tasks, taskLists, events, habits, inbox, profileSections] = await Promise.all([
     fetchTasks(env, accountId),
     fetchTaskLists(env, accountId),
     fetchEvents(env, accountId),
     fetchHabits(supabase, today),
     fetchInbox(supabase),
+    fetchProfileSections(supabase),
   ]);
 
-  const ctx: ChatContext = { tasks, taskLists, events, habits, inbox };
+  const ctx: ChatContext = { tasks, taskLists, events, habits, inbox, profileSections };
   await env.TOKENS.put(cacheKey, JSON.stringify(ctx), { expirationTtl: CTX_TTL });
   return ctx;
 }
@@ -226,6 +237,27 @@ async function executeTool(
       return { result: `Utworzono zadanie: "${title}"`, mutated: true };
     }
 
+    if (name === 'update_profile_section') {
+      const section = String(args.section ?? '').trim();
+      const content = String(args.content ?? '').trim();
+      if (!section) return { result: 'Błąd: brak nazwy sekcji.', mutated: false };
+
+      const { data: current, error: fetchErr } = await supabase
+        .from('life_profile')
+        .select('sections')
+        .eq('id', 1)
+        .single();
+      if (fetchErr) return { result: `Błąd bazy: ${fetchErr.message}`, mutated: false };
+
+      const merged = { ...(current?.sections ?? {}), [section]: content };
+      const { error } = await supabase
+        .from('life_profile')
+        .update({ sections: merged, updated_at: new Date().toISOString() })
+        .eq('id', 1);
+      if (error) return { result: `Błąd bazy: ${error.message}`, mutated: false };
+      return { result: `Zaktualizowano sekcję profilu "${section}".`, mutated: true };
+    }
+
     return { result: `Nieznana akcja: ${name}`, mutated: false };
   } catch (err) {
     return { result: `Błąd wykonania: ${String(err)}`, mutated: false };
@@ -307,6 +339,26 @@ const TOOLS = [
           required: ['title', 'list_id'],
         },
       },
+      {
+        name: 'update_profile_section',
+        description:
+          'Aktualizuje sekcję w profilu życiowym użytkownika. Użyj gdy użytkownik poinformuje o zmianie w swoim życiu (nowa praca, przeprowadzka, nowy cel, zmiana zdrowia itp.). ZAWSZE najpierw zapytaj o potwierdzenie.',
+        parameters: {
+          type: 'object',
+          properties: {
+            section: {
+              type: 'string',
+              description:
+                'Klucz sekcji (snake_case, np. "praca", "dom", "cele", "zdrowie", "relacje", "finanse", "projekty", "inne" lub własny klucz).',
+            },
+            content: {
+              type: 'string',
+              description: 'Nowa treść sekcji — pełny opis aktualnej sytuacji użytkownika w tej obszarze.',
+            },
+          },
+          required: ['section', 'content'],
+        },
+      },
     ],
   },
 ];
@@ -330,15 +382,26 @@ chatRouter.post('/', async (c) => {
   const supabase = createSupabase(c.env);
 
   // Load context from KV cache (or fetch fresh if expired/missing).
-  const { tasks, taskLists, events, habits, inbox } = await loadContext(
+  const { tasks, taskLists, events, habits, inbox, profileSections } = await loadContext(
     c.env,
     accountId,
     today,
     supabase,
   );
 
+  const profileText = Object.entries(profileSections)
+    .filter(([, v]) => v && String(v).trim().length > 0)
+    .map(([k, v]) => `**${k}:** ${v}`)
+    .join('\n');
+
   const systemPrompt = `Jesteś osobistym asystentem w aplikacji Life.OS. Rozmawiasz po polsku.
 Masz dostęp do danych użytkownika i możesz wykonywać akcje w jego imieniu.
+
+## PROFIL UŻYTKOWNIKA
+Poniższe informacje opisują aktualną sytuację życiową użytkownika.
+Używaj ich aby personalizować odpowiedzi i proaktywnie nawiązywać do kontekstu.
+
+${profileText || 'Brak danych — profil nie został jeszcze uzupełniony.'}
 
 AKTUALNY KONTEKST (${warsawTime(now)}):
 
