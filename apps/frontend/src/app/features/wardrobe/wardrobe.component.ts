@@ -142,11 +142,12 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               @for (item of items(section.key); track item.id; let idx = $index) {
                 <div class="lo-card group relative overflow-hidden">
-                  <!-- Delete button -->
+                  <!-- Delete button: always tappable on touch, hover-reveal on desktop -->
                   <button
-                    class="absolute right-1 top-1 z-10 hidden h-5 w-5 items-center justify-center rounded bg-red-900/70 text-[10px] text-red-300 hover:bg-red-700 group-hover:flex"
+                    class="absolute right-1 top-1 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-red-900/80 text-base leading-none text-red-100 shadow transition hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-400 disabled:opacity-40 md:h-6 md:w-6 md:opacity-0 md:group-hover:opacity-100"
                     [disabled]="wardrobe.saving()"
                     (click)="deleteItem(section.key, idx)"
+                    aria-label="Usuń"
                     title="Usuń"
                   >
                     ×
@@ -293,6 +294,8 @@ export class WardrobeComponent implements OnInit {
   }
 
   deleteItem(section: WardrobeSection, index: number): void {
+    const name = this.items(section)[index]?.nazwa ?? 'tę rzecz';
+    if (!confirm(`Usunąć „${name}" z garderoby?`)) return;
     this.wardrobe.deleteItem(section, index);
   }
 }
