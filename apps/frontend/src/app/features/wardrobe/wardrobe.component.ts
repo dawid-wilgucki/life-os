@@ -144,9 +144,9 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
                 <div class="lo-card group relative overflow-hidden">
                   <!-- Delete button -->
                   <button
-                    class="absolute right-1 top-1 z-10 hidden h-5 w-5 items-center justify-center rounded bg-red-900/70 text-[10px] text-red-300 hover:bg-red-700 group-hover:flex"
+                    class="absolute right-1 top-1 z-10 flex invisible pointer-events-none h-5 w-5 items-center justify-center rounded bg-red-900/70 text-[10px] text-red-300 hover:bg-red-700 group-hover:visible group-hover:pointer-events-auto"
                     [disabled]="wardrobe.saving()"
-                    (click)="deleteItem(section.key, idx)"
+                    (click)="$event.stopPropagation(); deleteItem(section.key, idx)"
                     title="Usuń"
                   >
                     ×

@@ -43,7 +43,7 @@ export class WardrobeService {
   updateItem(section: WardrobeSection, index: number, nazwa: string): void {
     this.saving.set(true);
     this.error.set(null);
-    this.api.patch<Wardrobe>(`/api/wardrobe/item/${section}/${index}`, { nazwa }).subscribe({
+    this.api.put<Wardrobe>(`/api/wardrobe/item/${section}/${index}`, { nazwa }).subscribe({
       next: (w) => this.wardrobe.set(this.withPhotoUrls(w)),
       error: () => {
         this.error.set('Błąd podczas edytowania ubrania.');
