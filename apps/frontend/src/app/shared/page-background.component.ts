@@ -9,7 +9,8 @@ export type BgTheme =
   | 'habits'
   | 'inbox'
   | 'subscriptions'
-  | 'chat';
+  | 'chat'
+  | 'job-search';
 
 interface ThemeCfg {
   /** Asset path (served from apps/frontend/assets via angular.json). */
@@ -34,6 +35,7 @@ const THEMES: Record<BgTheme, ThemeCfg> = {
   // Subscriptions reuses the Star Wars art — "dark side" money flows.
   subscriptions: { img: A + 'minimalist-star-wars-display-isxi8qx4rmm2eex2.jpg', position: 'center', accent: '#3d8c5e' },
   chat: { img: A + 'vector-art-of-death-note-l-sb6g7xhxrv07jiho.jpg', position: 'right center', accent: '#5b68d4' },
+  'job-search': { img: A + 'minimalist-star-wars-display-isxi8qx4rmm2eex2.jpg', position: 'center', accent: '#3b82f6' },
 };
 
 /**

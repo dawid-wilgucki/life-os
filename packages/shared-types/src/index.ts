@@ -474,6 +474,27 @@ export interface ChatResponse {
 }
 
 // ============================================================================
+// Job Search
+// ============================================================================
+
+export type JobSource = 'justjoin' | 'nofluffjobs';
+
+export interface JobOffer {
+  id: string;
+  title: string;
+  company: string;
+  salary_from: number | null;
+  salary_to: number | null;
+  currency: string | null;
+  url: string;
+  source: JobSource;
+  location: string | null;
+  remote: boolean;
+  created_at: string;
+  dismissed: boolean;
+}
+
+// ============================================================================
 // Solar (Solarman PV inverter)
 // ============================================================================
 
