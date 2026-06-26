@@ -12,7 +12,7 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
     <div class="relative mx-auto max-w-4xl p-6">
 
       <!-- Header -->
-      <div class="mb-6 flex items-center justify-between">
+      <div class="mb-4 flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-semibold">Oferty pracy</h1>
           <p class="text-sm text-slate-400">Angular · junior/mid · Kraków lub remote</p>
@@ -26,7 +26,29 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
         </button>
       </div>
 
-      <!-- Loading state -->
+      <!-- Error banner (DB error / brak migracji) -->
+      @if (svc.loadError()) {
+        <div class="mb-4 rounded-lg border border-red-700 bg-red-900/30 p-4 text-sm text-red-300">
+          ⚠ {{ svc.loadError() }}
+        </div>
+      }
+
+      <!-- Fetch result info -->
+      @if (svc.fetchResult(); as r) {
+        <div class="mb-4 rounded-lg border p-3 text-sm"
+          [class]="r.fetched > 0
+            ? 'border-emerald-700 bg-emerald-900/20 text-emerald-300'
+            : 'border-slate-700 bg-slate-800/40 text-slate-400'"
+        >
+          @if (r.fetched > 0) {
+            ✓ Znaleziono {{ r.fetched }} ofert{{ r.fetched === 1 ? 'ę' : 'y' }} i dodano {{ r.saved }} nowych.
+          } @else {
+            ℹ Scraper nie znalazł pasujących ofert — JustJoin.IT lub NoFluffJobs mogą być chwilowo niedostępne.
+          }
+        </div>
+      }
+
+      <!-- Loading -->
       @if (svc.loading()) {
         <p class="text-slate-500">Ładowanie ofert…</p>
       }
@@ -67,7 +89,7 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
             <!-- Location + remote -->
             <div class="flex items-center gap-2 text-xs text-slate-400">
               @if (offer.remote) {
-                <span class="rounded bg-emerald-900/50 px-1.5 py-0.5 text-emerald-400 font-medium">remote</span>
+                <span class="rounded bg-emerald-900/50 px-1.5 py-0.5 font-medium text-emerald-400">remote</span>
               }
               @if (offer.location) {
                 <span>📍 {{ offer.location }}</span>
@@ -95,7 +117,7 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
 
           </div>
         } @empty {
-          @if (!svc.loading()) {
+          @if (!svc.loading() && !svc.loadError()) {
             <div class="sm:col-span-2 lg:col-span-3">
               <p class="text-slate-500">Brak ofert. Kliknij "Odśwież" żeby pobrać nowe.</p>
             </div>

@@ -46,8 +46,16 @@ async function scrapeJustJoinIT(): Promise<OfferInput[]> {
   });
   if (!res.ok) throw new Error(`JJI responded ${res.status}`);
 
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(`JJI returned non-JSON (${contentType})`);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const all: any[] = await res.json();
+  const raw: any = await res.json();
+  // Handle both flat array and wrapped formats: { data:[...] } | { offers:[...] }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.offers ?? raw?.postings ?? []);
   const results: OfferInput[] = [];
 
   for (const o of all) {
