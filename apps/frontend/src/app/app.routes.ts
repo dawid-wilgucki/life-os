@@ -62,6 +62,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'job-search',
+        loadComponent: () =>
+          import('./features/job-search/job-search.component').then((m) => m.JobSearchComponent),
+      },
+      {
         path: 'chat',
         loadComponent: () =>
           import('./features/chat/chat.component').then((m) => m.ChatComponent),

@@ -24,4 +24,4 @@ id = "4a74d2527203487fbca725ce83b0a159"
 #   To set in production: npx wrangler secret put GEMINI_API_KEY
 
 [triggers]
-crons = ["0 6 * * *", "0 8 * * *", "0 19 * * *", "0 20 * * *"]
+crons = ["0 6 * * *", "0 7 * * *", "0 8 * * *", "0 19 * * *", "0 20 * * *"]
