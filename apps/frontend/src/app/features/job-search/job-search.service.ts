@@ -5,6 +5,7 @@ import { ApiService } from '../../core/api.service';
 export interface FetchResult {
   fetched: number;
   saved: number;
+  sources: { justjoin: string; nofluffjobs: string };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -45,10 +46,7 @@ export class JobSearchService {
         this.fetchResult.set(result);
         this.load();
       },
-      error: () => {
-        this.fetching.set(false);
-        this.fetchResult.set(null);
-      },
+      error: () => this.fetching.set(false),
     });
   }
 }

@@ -26,25 +26,28 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
         </button>
       </div>
 
-      <!-- Error banner (DB error / brak migracji) -->
+      <!-- DB error banner -->
       @if (svc.loadError()) {
         <div class="mb-4 rounded-lg border border-red-700 bg-red-900/30 p-4 text-sm text-red-300">
           ⚠ {{ svc.loadError() }}
         </div>
       }
 
-      <!-- Fetch result info -->
+      <!-- Fetch result with per-source details -->
       @if (svc.fetchResult(); as r) {
-        <div class="mb-4 rounded-lg border p-3 text-sm"
+        <div class="mb-4 rounded-lg border p-4 text-sm"
           [class]="r.fetched > 0
             ? 'border-emerald-700 bg-emerald-900/20 text-emerald-300'
             : 'border-slate-700 bg-slate-800/40 text-slate-400'"
         >
           @if (r.fetched > 0) {
-            ✓ Znaleziono {{ r.fetched }} ofert{{ r.fetched === 1 ? 'ę' : 'y' }} i dodano {{ r.saved }} nowych.
+            <p class="font-medium">✓ Znaleziono {{ r.fetched }} ofert, dodano {{ r.saved }} nowych.</p>
           } @else {
-            ℹ Scraper nie znalazł pasujących ofert — JustJoin.IT lub NoFluffJobs mogą być chwilowo niedostępne.
+            <p class="font-medium">ℹ Scraper nie znalazł pasujących ofert.</p>
           }
+          <p class="mt-1 text-xs opacity-70">
+            JustJoin.IT: {{ r.sources.justjoin }} &nbsp;·&nbsp; NoFluffJobs: {{ r.sources.nofluffjobs }}
+          </p>
         </div>
       }
 

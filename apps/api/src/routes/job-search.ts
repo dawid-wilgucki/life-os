@@ -39,16 +39,29 @@ interface OfferInput {
   remote: boolean;
 }
 
+// Browser-like headers to avoid bot detection on CF Worker IPs
+const BROWSER_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Accept-Encoding': 'gzip, deflate, br',
+  Referer: 'https://justjoin.it/',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-origin',
+};
+
 async function scrapeJustJoinIT(): Promise<OfferInput[]> {
   const res = await fetch('https://justjoin.it/api/offers', {
-    headers: { Accept: 'application/json' },
+    headers: BROWSER_HEADERS,
     signal: AbortSignal.timeout(25_000),
   });
-  if (!res.ok) throw new Error(`JJI responded ${res.status}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
 
   const contentType = res.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
-    throw new Error(`JJI returned non-JSON (${contentType})`);
+    throw new Error(`non-JSON response (${contentType.split(';')[0]})`);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,6 +69,9 @@ async function scrapeJustJoinIT(): Promise<OfferInput[]> {
   // Handle both flat array and wrapped formats: { data:[...] } | { offers:[...] }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const all: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.offers ?? raw?.postings ?? []);
+
+  if (all.length === 0) throw new Error(`empty response (keys: ${Object.keys(raw ?? {}).join(', ')})`);
+
   const results: OfferInput[] = [];
 
   for (const o of all) {
@@ -63,7 +79,8 @@ async function scrapeJustJoinIT(): Promise<OfferInput[]> {
     const icon = (o.marker_icon ?? '').toLowerCase();
     const skills: string[] = (o.skills ?? []).map((s: { name: string }) => s.name.toLowerCase());
     const titleLow = (o.title ?? '').toLowerCase();
-    const isAngular = icon === 'angular' || skills.includes('angular') || titleLow.includes('angular');
+    const isAngular =
+      icon === 'angular' || skills.includes('angular') || titleLow.includes('angular');
     if (!isAngular) continue;
 
     // Seniority filter: junior or mid only
@@ -71,9 +88,10 @@ async function scrapeJustJoinIT(): Promise<OfferInput[]> {
     if (lvl && lvl !== 'junior' && lvl !== 'mid') continue;
 
     // Location filter: Kraków or remote/hybrid
-    const city = (o.city ?? '').toLowerCase().replace(/ó/g, 'o'); // ó → o
+    const city = (o.city ?? '').toLowerCase().replace(/ó/g, 'o');
     const wt = (o.workplace_type ?? '').toLowerCase();
-    const isRemote = o.remote === true || wt === 'remote' || wt === 'hybrid' || wt === 'partly_remote';
+    const isRemote =
+      o.remote === true || wt === 'remote' || wt === 'hybrid' || wt === 'partly_remote';
     const isKrakow = city === 'krakow' || city.startsWith('krak');
     if (!isRemote && !isKrakow) continue;
 
@@ -102,25 +120,28 @@ async function scrapeNoFluffJobs(): Promise<OfferInput[]> {
   const results: OfferInput[] = [];
 
   const searches = [
-    // Angular in Kraków
     'criteria=requirement%3Dangular+city%3Dkrakow',
-    // Angular fully remote
     'criteria=requirement%3Dangular&remote=true',
   ];
 
   for (const qs of searches) {
-    const res = await fetch(`https://nofluffjobs.com/api/search/posting?${qs}&salaryCurrency=PLN&salaryPeriod=month`, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
-    });
+    const res = await fetch(
+      `https://nofluffjobs.com/api/search/posting?${qs}&salaryCurrency=PLN&salaryPeriod=month`,
+      {
+        headers: { ...BROWSER_HEADERS, Referer: 'https://nofluffjobs.com/' },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
     if (!res.ok) continue;
+
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) continue;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any = await res.json();
     const postings: any[] = data.postings ?? data.items ?? [];
 
     for (const o of postings) {
-      // Seniority filter
       const seniority: string[] = (o.seniority ?? []).map((s: string) => s.toLowerCase());
       const isJuniorMid =
         seniority.length === 0 || seniority.some((s) => s === 'junior' || s === 'mid');
@@ -146,26 +167,40 @@ async function scrapeNoFluffJobs(): Promise<OfferInput[]> {
   return results;
 }
 
-export async function fetchAndSaveJobOffers(env: Env): Promise<{ fetched: number; saved: number }> {
+export interface FetchSummary {
+  fetched: number;
+  saved: number;
+  sources: {
+    justjoin: string;   // e.g. "12 offers" or "error: HTTP 403 Forbidden"
+    nofluffjobs: string;
+  };
+}
+
+export async function fetchAndSaveJobOffers(env: Env): Promise<FetchSummary> {
   const collected: OfferInput[] = [];
+  const sources = { justjoin: '', nofluffjobs: '' };
 
   try {
     const jji = await scrapeJustJoinIT();
     collected.push(...jji);
-    console.log(`[job-search] JustJoin.IT: ${jji.length} offers matched`);
+    sources.justjoin = `${jji.length} ofert`;
+    console.log(`[job-search] JustJoin.IT: ${jji.length} matched`);
   } catch (e) {
+    sources.justjoin = `błąd: ${String(e).replace('Error: ', '')}`;
     console.error('[job-search] JustJoin.IT failed:', String(e));
   }
 
   try {
     const nfj = await scrapeNoFluffJobs();
     collected.push(...nfj);
-    console.log(`[job-search] NoFluffJobs: ${nfj.length} offers matched`);
+    sources.nofluffjobs = `${nfj.length} ofert`;
+    console.log(`[job-search] NoFluffJobs: ${nfj.length} matched`);
   } catch (e) {
+    sources.nofluffjobs = `błąd: ${String(e).replace('Error: ', '')}`;
     console.error('[job-search] NoFluffJobs failed:', String(e));
   }
 
-  if (collected.length === 0) return { fetched: 0, saved: 0 };
+  if (collected.length === 0) return { fetched: 0, saved: 0, sources };
 
   const supabase = createSupabase(env);
   const { error } = await supabase
@@ -174,10 +209,10 @@ export async function fetchAndSaveJobOffers(env: Env): Promise<{ fetched: number
 
   if (error) {
     console.error('[job-search] upsert failed:', error.message);
-    return { fetched: collected.length, saved: 0 };
+    return { fetched: collected.length, saved: 0, sources };
   }
 
-  return { fetched: collected.length, saved: collected.length };
+  return { fetched: collected.length, saved: collected.length, sources };
 }
 
 // ── routes ───────────────────────────────────────────────────────────────────
@@ -194,7 +229,7 @@ jobSearchRouter.get('/offers', async (c) => {
   return c.json((data ?? []).map(toOffer));
 });
 
-// POST /api/job-search/fetch — manual trigger (also used by cron)
+// POST /api/job-search/fetch — manual trigger + cron
 jobSearchRouter.post('/fetch', async (c) => {
   const result = await fetchAndSaveJobOffers(c.env);
   return c.json(result);
