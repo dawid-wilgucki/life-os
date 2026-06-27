@@ -1,32 +1,12 @@
 import { Hono } from 'hono';
-import type { GemStatus, GoldCheckResult, GoldRunResult, GoldStatus } from '@life-os/shared-types';
+import type { GemStatus, GoldCheckResult, GoldOffersResult, GoldOpportunities, GoldStatus } from '@life-os/shared-types';
 import type { AppContext } from '../types';
 import { requireAuth } from '../middleware/auth';
+import { fetchNumiOffers, GOLD_TIERS, isOpportunity } from '../lib/numitracker';
+import { sendTelegram } from '../lib/telegram';
 
-// External, read-only Workers. Life.OS NEVER modifies these.
-const GOLD_URL = 'https://gold-tracker.dawidwilgucki9.workers.dev/';
 const GEM_URL = 'https://gem-strategy.dawidwilgucki9.workers.dev/status';
-
-// NBP cenyzlota — same SPOT source the gold-tracker uses, but read-only with no
-// side effects. Returns [{ data: "2026-06-10", cena: 510.02 }] = PLN per gram .999.
 const NBP_GOLD_URL = 'https://api.nbp.pl/api/cenyzlota/?format=json';
-
-// Opportunity thresholds, copied verbatim from the gold-tracker `isOpportunity`.
-const GOLD_TIERS: { maxPrice: number; threshold: number; label: string }[] = [
-  { maxPrice: 600, threshold: 10.0, label: '≤ 600 zł (sztabki 1 g)' },
-  { maxPrice: 1200, threshold: 7.0, label: '≤ 1200 zł (sztabki 2–2.5 g)' },
-  { maxPrice: 2000, threshold: 5.5, label: '≤ 2000 zł (monety 1/10 oz, dukaty)' },
-];
-
-async function nbpSpotPerGram(): Promise<{ spot: number; asOf?: string } | null> {
-  const raw = (await fetchJson(NBP_GOLD_URL)) as Array<{ data?: string; cena?: number }> | null;
-  const entry = Array.isArray(raw) ? raw[raw.length - 1] : null;
-  if (!entry || typeof entry.cena !== 'number') return null;
-  return { spot: entry.cena, asOf: entry.data };
-}
-
-export const investmentsRouter = new Hono<AppContext>();
-investmentsRouter.use('*', requireAuth);
 
 async function fetchJson(url: string, timeoutMs = 5000): Promise<unknown | null> {
   const ctrl = new AbortController();
@@ -42,43 +22,24 @@ async function fetchJson(url: string, timeoutMs = 5000): Promise<unknown | null>
   }
 }
 
-// PLN per gram, matching the NBP unit (not per oz).
-const GOLD_MOCK: GoldStatus = {
-  spot: 510.02,
-  currency: 'PLN',
-  asOf: new Date().toISOString().slice(0, 10),
-  alerts: [],
-  mock: true,
-};
+async function nbpSpotPerGram(): Promise<{ spot: number; asOf?: string } | null> {
+  const raw = (await fetchJson(NBP_GOLD_URL)) as Array<{ data?: string; cena?: number }> | null;
+  const entry = Array.isArray(raw) ? raw[raw.length - 1] : null;
+  if (!entry || typeof entry.cena !== 'number') return null;
+  return { spot: entry.cena, asOf: entry.data };
+}
 
-const GEM_MOCK: GemStatus = {
-  ranking: [
-    { ticker: 'SPY', score: 0.82 },
-    { ticker: 'QQQ', score: 0.78 },
-    { ticker: 'EEM', score: 0.69 },
-  ],
-  currentHolding: 'SPY',
-  mock: true,
-};
+export const investmentsRouter = new Hono<AppContext>();
+investmentsRouter.use('*', requireAuth);
 
-// GET /api/investments/gold — live SPOT (PLN/g) from NBP. Read-only, no side
-// effects, so it is safe to call on every page load / refresh. (Calling the
-// gold-tracker worker here would fire Telegram alerts + KV writes each time.)
+// GET /api/investments/gold — live SPOT (PLN/g) from NBP. Read-only, no side effects.
 investmentsRouter.get('/gold', async (c) => {
   const nbp = await nbpSpotPerGram();
-  if (!nbp) return c.json(GOLD_MOCK);
-
-  const status: GoldStatus = {
-    spot: nbp.spot,
-    currency: 'PLN',
-    asOf: nbp.asOf,
-    alerts: [],
-  };
-  return c.json(status);
+  if (!nbp) return c.json({ error: 'NBP niedostępne' }, 503);
+  return c.json({ spot: nbp.spot, currency: 'PLN', asOf: nbp.asOf, alerts: [] } satisfies GoldStatus);
 });
 
-// POST /api/investments/gold/check — premium calculator. Computes the premium of
-// an offer over live SPOT and verdicts it against the gold-tracker thresholds.
+// POST /api/investments/gold/check — premium calculator.
 // Body: { price: number (PLN), weightGrams: number, spotPerGram?: number }
 investmentsRouter.post('/gold/check', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
@@ -88,70 +49,88 @@ investmentsRouter.post('/gold/check', async (c) => {
   };
   const price = Number(body.price);
   const weightGrams = Number(body.weightGrams);
-  if (!(price > 0) || !(weightGrams > 0)) {
+  if (!(price > 0) || !(weightGrams > 0))
     return c.json({ error: 'price and weightGrams must be positive numbers' }, 400);
-  }
 
   let spotPerGram = Number(body.spotPerGram);
-  let mock = false;
   if (!(spotPerGram > 0)) {
     const nbp = await nbpSpotPerGram();
-    if (nbp) spotPerGram = nbp.spot;
-    else {
-      spotPerGram = GOLD_MOCK.spot;
-      mock = true;
-    }
+    if (!nbp) return c.json({ error: 'NBP niedostępne' }, 503);
+    spotPerGram = nbp.spot;
   }
 
   const spotValue = weightGrams * spotPerGram;
   const overSpotPct = ((price - spotValue) / spotValue) * 100;
   const tier = GOLD_TIERS.find((t) => price <= t.maxPrice) ?? null;
   const threshold = tier?.threshold ?? null;
-  const isOpportunity = threshold !== null && overSpotPct <= threshold;
 
-  const result: GoldCheckResult = {
+  return c.json({
     price,
     weightGrams,
     spotPerGram,
     spotValue,
     overSpotPct,
     threshold,
-    isOpportunity,
+    isOpportunity: threshold !== null && overSpotPct <= threshold,
     tier: tier?.label ?? '> 2000 zł (poza zakresem trackera)',
-    ...(mock ? { mock: true } : {}),
-  };
-  return c.json(result);
+  } satisfies GoldCheckResult);
 });
 
-// POST /api/investments/gold/run — manual trigger of the gold-tracker check.
-// Hits the worker's GET / which scrapes NumiTracker and pushes Telegram alerts,
-// then returns its counters. Side-effecting on purpose ("Sprawdź teraz").
-investmentsRouter.post('/gold/run', async (c) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = (await fetchJson(GOLD_URL, 15000)) as any;
-  if (!raw || typeof raw.checked !== 'number') {
-    return c.json({ checked: 0, alertsSent: 0, spotPerGram: null, mock: true } satisfies GoldRunResult);
-  }
+// POST /api/investments/gold/offers — fetch NumiTracker offers, send Telegram summary.
+// Body: { maxPrice?: number }  (default 2000, capped at 10000)
+investmentsRouter.post('/gold/offers', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { maxPrice?: number };
+  const maxPrice = Math.min(Math.max(Number(body.maxPrice) || 2000, 100), 10000);
+
+  const [offers, nbp] = await Promise.all([fetchNumiOffers(maxPrice), nbpSpotPerGram()]);
+  const opps = offers.filter((o) => isOpportunity(o.price, o.overSpot));
+  const spotStr = nbp ? `${nbp.spot.toFixed(2)} PLN/g` : 'brak danych';
+
+  const rows = opps.slice(0, 12).map((o) => {
+    const g = o.weightGrams != null ? `${o.weightGrams}g` : '—';
+    const cena = `${Math.round(o.price)} zł`;
+    const prem = `${o.overSpot.toFixed(1)}%`;
+    const dealer = (o.dealer ?? '—').slice(0, 12);
+    return `${g.padEnd(6)}| ${cena.padEnd(8)}| ${prem.padEnd(6)}| ${dealer}`;
+  });
+  const tableBody = opps.length
+    ? `🏆 ${opps.length} okazji ≤ ${maxPrice} zł\n\n<code>gram  | cena    | prem  | dealer\n${rows.join('\n')}</code>`
+    : `✅ Brak okazji przy ≤ ${maxPrice} zł.`;
+  const msg = `📊 Sprawdzono oferty (≤ ${maxPrice} zł)\n🔍 Ofert: <b>${offers.length}</b> | SPOT: ${spotStr}\n\n${tableBody}`;
+  sendTelegram(c.env, msg);
+
   return c.json({
-    checked: raw.checked,
-    alertsSent: typeof raw.alerts_sent === 'number' ? raw.alerts_sent : 0,
-    spotPerGram: typeof raw.spot_pln_per_gram === 'number' ? raw.spot_pln_per_gram : null,
-  } satisfies GoldRunResult);
+    maxPrice,
+    spotPerGram: nbp?.spot ?? null,
+    asOf: nbp?.asOf,
+    count: offers.length,
+    offers,
+  } satisfies GoldOffersResult);
 });
 
-// GET /api/investments/gem — proxy to gem-strategy /status (mock if unavailable).
+// GET /api/investments/gold/opportunities — daily snapshot from KV (populated by cron).
+investmentsRouter.get('/gold/opportunities', async (c) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const raw = await c.env.TOKENS.get(`gold_opportunities:${today}`);
+  if (!raw) {
+    return c.json({ date: null, spotPerGram: null, count: 0, offers: [] } satisfies GoldOpportunities);
+  }
+  return c.json(JSON.parse(raw) as GoldOpportunities);
+});
+
+// GET /api/investments/gem — proxy to gem-strategy /status.
 investmentsRouter.get('/gem', async (c) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = (await fetchJson(GEM_URL)) as any;
-  // TODO: confirm the real gem-strategy /status shape and map precisely.
-  if (!raw || !Array.isArray(raw.ranking)) return c.json(GEM_MOCK);
-
-  const status: GemStatus = {
+  if (!raw || !Array.isArray(raw.ranking)) {
+    return c.json({ ranking: [], currentHolding: null } satisfies GemStatus);
+  }
+  return c.json({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ranking: raw.ranking.map((r: any) => ({
       ticker: r.ticker ?? r.symbol ?? '?',
       score: Number(r.score ?? r.momentum ?? 0),
     })),
     currentHolding: raw.currentHolding ?? raw.holding ?? null,
-  };
-  return c.json(status);
+  } satisfies GemStatus);
 });

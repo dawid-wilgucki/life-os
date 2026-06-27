@@ -156,8 +156,6 @@ export interface GoldStatus {
   /** NBP quote date for this SPOT, e.g. "2026-06-10". */
   asOf?: string;
   alerts: GoldAlert[];
-  /** True when the data is mocked because the upstream source was unavailable. */
-  mock?: boolean;
 }
 
 /**
@@ -181,21 +179,46 @@ export interface GoldCheckResult {
   isOpportunity: boolean;
   /** Human label for the matched price tier. */
   tier: string;
-  mock?: boolean;
+}
+
+/** A single NumiTracker gold offer (PL), as surfaced by Life.OS. */
+export interface GoldOffer {
+  id: number;
+  title: string;
+  slug: string;
+  /** Sale price in PLN. */
+  price: number;
+  /** Premium over SPOT, percent (as computed by NumiTracker). */
+  overSpot: number;
+  /** Pure gold content in grams, or null when NumiTracker doesn't expose it. */
+  weightGrams: number | null;
+  dealer: string | null;
+  dealerUrl: string | null;
+  numitrackerUrl: string;
 }
 
 /**
- * Result of a manual gold-tracker run (POST /api/investments/gold/run).
- * Triggers the worker's full check (scrape + Telegram alerts) and returns its counters.
+ * Result of an offer check (POST /api/investments/gold/offers).
+ * Offers are capped at `maxPrice` and sorted by premium ascending.
  */
-export interface GoldRunResult {
-  /** Offers inspected by the worker. */
-  checked: number;
-  /** New alerts the worker pushed to Telegram. */
-  alertsSent: number;
-  /** SPOT PLN/g reported by the worker, or null if unavailable. */
+export interface GoldOffersResult {
+  maxPrice: number;
   spotPerGram: number | null;
-  mock?: boolean;
+  asOf?: string;
+  count: number;
+  offers: GoldOffer[];
+}
+
+/**
+ * Latest daily opportunity snapshot (GET /api/investments/gold/opportunities).
+ * Populated once a day by the cron; offers already pass the tier thresholds.
+ */
+export interface GoldOpportunities {
+  /** ISO date of the last daily check, or null if it hasn't run yet. */
+  date: string | null;
+  spotPerGram: number | null;
+  count: number;
+  offers: GoldOffer[];
 }
 
 export interface GemRankingEntry {
@@ -206,7 +229,6 @@ export interface GemRankingEntry {
 export interface GemStatus {
   ranking: GemRankingEntry[];
   currentHolding: string | null;
-  mock?: boolean;
 }
 
 // ============================================================================

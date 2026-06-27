@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { remindMaintenance } from './maintenance';
 import { nudgeHabits } from './habits';
 import { remindSubscriptions } from './subscriptions';
+import { checkGoldOpportunities } from './gold';
 
 /** Current hour (0-23) in Europe/Warsaw, DST-aware. */
 function warsawHour(): number {
@@ -23,6 +24,10 @@ function warsawHour(): number {
 export async function handleScheduled(cron: string, env: Env): Promise<void> {
   if (cron === '0 6 * * *') {
     await remindMaintenance(env);
+    return;
+  }
+  if (cron === '0 7 * * *') {
+    await checkGoldOpportunities(env);
     return;
   }
   if (cron === '0 8 * * *') {
