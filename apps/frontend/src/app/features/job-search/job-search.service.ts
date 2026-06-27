@@ -5,7 +5,7 @@ import { ApiService } from '../../core/api.service';
 export interface FetchResult {
   fetched: number;
   saved: number;
-  sources: { justjoin: string; nofluffjobs: string };
+  sources: { justjoin: string; nofluffjobs: string; remotive: string };
 }
 
 @Injectable({ providedIn: 'root' })

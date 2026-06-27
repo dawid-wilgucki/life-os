@@ -477,7 +477,7 @@ export interface ChatResponse {
 // Job Search
 // ============================================================================
 
-export type JobSource = 'justjoin' | 'nofluffjobs';
+export type JobSource = 'justjoin' | 'nofluffjobs' | 'remotive';
 
 export interface JobOffer {
   id: string;

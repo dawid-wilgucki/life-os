@@ -46,7 +46,7 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
             <p class="font-medium">ℹ Scraper nie znalazł pasujących ofert.</p>
           }
           <p class="mt-1 text-xs opacity-70">
-            JustJoin.IT: {{ r.sources.justjoin }} &nbsp;·&nbsp; NoFluffJobs: {{ r.sources.nofluffjobs }}
+            JJI: {{ r.sources.justjoin }} &nbsp;·&nbsp; NFJ: {{ r.sources.nofluffjobs }} &nbsp;·&nbsp; Remotive: {{ r.sources.remotive }}
           </p>
         </div>
       }
@@ -73,9 +73,11 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
                 class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
                 [class]="offer.source === 'justjoin'
                   ? 'bg-pink-900/60 text-pink-300'
-                  : 'bg-sky-900/60 text-sky-300'"
+                  : offer.source === 'nofluffjobs'
+                  ? 'bg-sky-900/60 text-sky-300'
+                  : 'bg-violet-900/60 text-violet-300'"
               >
-                {{ offer.source === 'justjoin' ? 'JustJoin' : 'NoFluffJobs' }}
+                {{ offer.source === 'justjoin' ? 'JustJoin' : offer.source === 'nofluffjobs' ? 'NoFluffJobs' : 'Remotive' }}
               </span>
             </div>
 
