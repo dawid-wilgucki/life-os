@@ -52,8 +52,63 @@ const BROWSER_HEADERS = {
   'sec-fetch-site': 'same-origin',
 };
 
-async function scrapeJustJoinIT(): Promise<OfferInput[]> {
-  const res = await fetch('https://justjoin.it/api/offers', {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseJJIOffer(o: any): OfferInput | null {
+  // Tech filter — old API: marker_icon / skills[].name; new API: skills[].name / title
+  const icon = (o.marker_icon ?? o.category ?? '').toLowerCase();
+  const rawSkills: unknown[] = [
+    ...(o.skills ?? []),
+    ...(o.requiredSkills ?? []),
+    ...(o.niceToHaveSkills ?? []),
+  ];
+  const skillNames = rawSkills.map((s) =>
+    typeof s === 'string' ? s.toLowerCase() : ((s as { name?: string }).name ?? '').toLowerCase(),
+  );
+  const titleLow = (o.title ?? '').toLowerCase();
+  const isAngular = icon === 'angular' || skillNames.includes('angular') || titleLow.includes('angular');
+  if (!isAngular) return null;
+
+  // Seniority — old: experience_level; new: experienceLevel
+  const lvl = (o.experience_level ?? o.experienceLevel ?? '').toLowerCase();
+  if (lvl && lvl !== 'junior' && lvl !== 'mid') return null;
+
+  // Location — old: city + workplace_type/remote; new: city + workplaceType
+  const city = (o.city ?? '').toLowerCase().replace(/ó/g, 'o');
+  const wt = (o.workplace_type ?? o.workplaceType ?? '').toLowerCase();
+  const isRemote = o.remote === true || wt === 'remote' || wt === 'hybrid' || wt === 'partly_remote';
+  const isKrakow = city === 'krakow' || city.startsWith('krak');
+  if (!isRemote && !isKrakow) return null;
+
+  // Salary — old: employment_types[].salary; new: employmentTypes[].salary or salaryFrom/salaryTo
+  const empTypes: Array<{ salary?: { from: number; to: number; currency: string } | null }> =
+    o.employment_types ?? o.employmentTypes ?? [];
+  const salary = empTypes.find((e) => e.salary)?.salary ?? null;
+  const salaryFrom = salary?.from ?? o.salaryFrom ?? null;
+  const salaryTo = salary?.to ?? o.salaryTo ?? null;
+  const currency = salary?.currency ?? o.currency ?? null;
+
+  // Company — old: company_name; new: company.name
+  const company = o.company_name ?? o.company?.name ?? 'Unknown';
+
+  // URL — old: /offers/:id; new: /job-offers/:slug
+  const slug = o.slug ?? o.id;
+  const url = o.url ?? `https://justjoin.it/job-offers/${slug}`;
+
+  return {
+    title: o.title ?? 'Unknown',
+    company,
+    salary_from: salaryFrom != null ? Math.round(salaryFrom) : null,
+    salary_to: salaryTo != null ? Math.round(salaryTo) : null,
+    currency,
+    url,
+    source: 'justjoin',
+    location: o.city ?? null,
+    remote: isRemote,
+  };
+}
+
+async function fetchJJIPage(url: string): Promise<OfferInput[]> {
+  const res = await fetch(url, {
     headers: BROWSER_HEADERS,
     signal: AbortSignal.timeout(25_000),
   });
@@ -66,51 +121,34 @@ async function scrapeJustJoinIT(): Promise<OfferInput[]> {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw: any = await res.json();
-  // Handle both flat array and wrapped formats: { data:[...] } | { offers:[...] }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const all: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.offers ?? raw?.postings ?? []);
+  return all.map(parseJJIOffer).filter((o): o is OfferInput => o !== null);
+}
 
-  if (all.length === 0) throw new Error(`empty response (keys: ${Object.keys(raw ?? {}).join(', ')})`);
+async function scrapeJustJoinIT(): Promise<OfferInput[]> {
+  // New API (subdomain, paginated) — filter server-side for Angular + Kraków/remote + junior/mid
+  const newApiBase =
+    'https://api.justjoin.it/v2/user-panel/offers' +
+    '?perPage=100&page=1&sortBy=newest&orderBy=DESC' +
+    '&keyword=angular&workplaceType[]=remote&workplaceType[]=hybrid' +
+    '&experienceLevel[]=junior&experienceLevel[]=mid';
+
+  // Also fetch Kraków offers separately (remote filter might miss hybrid-krakow)
+  const newApiKrakow =
+    'https://api.justjoin.it/v2/user-panel/offers' +
+    '?perPage=100&page=1&sortBy=newest&orderBy=DESC' +
+    '&keyword=angular&city=krakow' +
+    '&experienceLevel[]=junior&experienceLevel[]=mid';
 
   const results: OfferInput[] = [];
+  const seen = new Set<string>();
 
-  for (const o of all) {
-    // Tech filter: Angular
-    const icon = (o.marker_icon ?? '').toLowerCase();
-    const skills: string[] = (o.skills ?? []).map((s: { name: string }) => s.name.toLowerCase());
-    const titleLow = (o.title ?? '').toLowerCase();
-    const isAngular =
-      icon === 'angular' || skills.includes('angular') || titleLow.includes('angular');
-    if (!isAngular) continue;
-
-    // Seniority filter: junior or mid only
-    const lvl = (o.experience_level ?? '').toLowerCase();
-    if (lvl && lvl !== 'junior' && lvl !== 'mid') continue;
-
-    // Location filter: Kraków or remote/hybrid
-    const city = (o.city ?? '').toLowerCase().replace(/ó/g, 'o');
-    const wt = (o.workplace_type ?? '').toLowerCase();
-    const isRemote =
-      o.remote === true || wt === 'remote' || wt === 'hybrid' || wt === 'partly_remote';
-    const isKrakow = city === 'krakow' || city.startsWith('krak');
-    if (!isRemote && !isKrakow) continue;
-
-    // Salary: pick first employment type that has a salary defined
-    const empTypes: Array<{ salary?: { from: number; to: number; currency: string } | null }> =
-      o.employment_types ?? [];
-    const salary = empTypes.find((e) => e.salary)?.salary ?? null;
-
-    results.push({
-      title: o.title ?? 'Unknown',
-      company: o.company_name ?? 'Unknown',
-      salary_from: salary ? Math.round(salary.from) : null,
-      salary_to: salary ? Math.round(salary.to) : null,
-      currency: salary?.currency ?? null,
-      url: `https://justjoin.it/offers/${o.id}`,
-      source: 'justjoin',
-      location: o.city ?? null,
-      remote: isRemote,
-    });
+  for (const url of [newApiBase, newApiKrakow]) {
+    const page = await fetchJJIPage(url);
+    for (const o of page) {
+      if (!seen.has(o.url)) { seen.add(o.url); results.push(o); }
+    }
   }
 
   return results;
