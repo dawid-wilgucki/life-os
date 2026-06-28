@@ -119,10 +119,13 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
                   {{ inv.goldAnalyzing() ? '🤖 Analizuję…' : '🤖 Zapytaj Gemini o okazję' }}
                 </button>
 
+                @if (inv.goldAnalyzing()) {
+                  <p class="mt-3 text-xs text-slate-500">Gemini analizuje {{ r.count }} ofert…</p>
+                }
+
                 @if (inv.goldAnalysis(); as a) {
-                  <div class="mt-3 rounded-lg bg-surface-800/70 p-4 text-sm leading-relaxed text-slate-200">
-                    <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">Analiza Gemini</p>
-                    {{ a.analysis }}
+                  <div class="mt-3 rounded-lg bg-surface-800/70 p-4 text-sm leading-relaxed text-slate-200" style="white-space: pre-wrap">
+                    <p class="mb-3 text-[11px] font-medium uppercase tracking-wide text-slate-500">Analiza Gemini</p>{{ a.analysis }}
                   </div>
                 }
               </div>
