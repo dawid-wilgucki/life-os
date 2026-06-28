@@ -168,6 +168,47 @@ export interface GemStatus {
   mock?: boolean;
 }
 
+// --- Gold on-demand check (port of gold-tracker /check) ---
+export interface GoldOffer {
+  title: string;
+  price: number;
+  grams: number | null;
+  /** % premii wg NumiTracker (over_spot). */
+  overSpot: number;
+  /** (price/grams/spot - 1)*100; null gdy brak wagi lub spotu. */
+  premiumVsNbpPct: number | null;
+  dealer: string | null;
+  numiUrl: string;
+  dealerUrl: string | null;
+}
+
+export interface GoldCheckResult {
+  maxPrice: number;
+  maxPremium: number | null;
+  spotPlnPerGram: number | null;
+  count: number;
+  /** Pełna lista, posortowana rosnąco po overSpot. */
+  offers: GoldOffer[];
+}
+
+// --- GEM on-demand analysis (port of runGemStrategy) ---
+export interface GemMomentumEntry {
+  name: string;
+  /** % momentum (12m-1m). */
+  momentum: number;
+}
+
+export interface GemRunResult {
+  /** Posortowane malejąco po momentum. */
+  ranking: GemMomentumEntry[];
+  leader: string | null;
+  currentHolding: string | null;
+  /** leader !== currentHolding. */
+  rotate: boolean;
+  errorCount: number;
+  ts: IsoDateTime;
+}
+
 // ============================================================================
 // Wardrobe (read-only from Google Drive JSON)
 // ============================================================================
