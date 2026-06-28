@@ -1,7 +1,14 @@
 import { Hono } from 'hono';
-import type { GemStatus, GoldStatus } from '@life-os/shared-types';
+import type {
+  GemRunResult,
+  GemStatus,
+  GoldCheckResult,
+  GoldStatus,
+} from '@life-os/shared-types';
 import type { AppContext } from '../types';
 import { requireAuth } from '../middleware/auth';
+import { checkGold } from '../lib/gold';
+import { runGemMomentum } from '../lib/gem';
 
 // External, read-only Workers. Life.OS NEVER modifies these.
 const GOLD_URL = 'https://gold-tracker.dawidwilgucki9.workers.dev/';
@@ -78,4 +85,36 @@ investmentsRouter.get('/gem', async (c) => {
     currentHolding: raw.currentHolding ?? raw.holding ?? null,
   };
   return c.json(status);
+});
+
+// POST /api/investments/gold/check — on-demand check (port of gold-tracker /check).
+// Body: { maxPrice: number, maxPremium?: number | null }
+investmentsRouter.post('/gold/check', async (c) => {
+  const body = await c.req
+    .json<{ maxPrice?: number; maxPremium?: number | null }>()
+    .catch(() => ({}) as { maxPrice?: number; maxPremium?: number | null });
+
+  const maxPrice = Number(body.maxPrice);
+  if (!Number.isFinite(maxPrice) || maxPrice <= 0) {
+    return c.json({ error: 'invalid_amount' }, 400);
+  }
+
+  const maxPremium =
+    body.maxPremium != null && Number.isFinite(Number(body.maxPremium))
+      ? Number(body.maxPremium)
+      : null;
+
+  const result: GoldCheckResult = await checkGold(maxPrice, maxPremium);
+  return c.json(result);
+});
+
+// POST /api/investments/gem/run — on-demand momentum analysis (port of /sprawdz).
+// Body: { currentHolding?: string }
+investmentsRouter.post('/gem/run', async (c) => {
+  const body = await c.req
+    .json<{ currentHolding?: string }>()
+    .catch(() => ({}) as { currentHolding?: string });
+
+  const result: GemRunResult = await runGemMomentum(body.currentHolding ?? null);
+  return c.json(result);
 });
