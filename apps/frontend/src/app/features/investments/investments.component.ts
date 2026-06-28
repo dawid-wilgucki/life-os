@@ -108,6 +108,24 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
               @if (r.count > 12) {
                 <p class="mt-2 text-xs text-slate-500">Pokazano top 12 z {{ r.count }} — pełna lista w pliku JSON.</p>
               }
+
+              <!-- Gemini analysis -->
+              <div class="mt-4 border-t border-surface-800 pt-4">
+                <button
+                  class="lo-btn"
+                  [disabled]="inv.goldAnalyzing()"
+                  (click)="inv.analyzeGold(r)"
+                >
+                  {{ inv.goldAnalyzing() ? '🤖 Analizuję…' : '🤖 Zapytaj Gemini o okazję' }}
+                </button>
+
+                @if (inv.goldAnalysis(); as a) {
+                  <div class="mt-3 rounded-lg bg-surface-800/70 p-4 text-sm leading-relaxed text-slate-200">
+                    <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">Analiza Gemini</p>
+                    {{ a.analysis }}
+                  </div>
+                }
+              </div>
             } @else {
               <p class="mt-3 text-sm text-slate-500">Brak wyników dla podanych kryteriów.</p>
             }
