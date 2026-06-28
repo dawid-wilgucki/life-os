@@ -112,34 +112,44 @@ investmentsRouter.post('/gold/analyze', async (c) => {
   }
 
   const spot = body.spotPlnPerGram ?? null;
-  const spotText =
+  const spotLine =
     spot != null
-      ? `Aktualny kurs NBP: **${spot.toFixed(2)} zł/g** (${(spot * OZ_TO_GRAMS).toFixed(2)} zł/oz).`
-      : 'Kurs NBP niedostępny.';
+      ? `Kurs NBP: ${spot.toFixed(2)} zł/g | ${(spot * OZ_TO_GRAMS).toFixed(2)} zł/oz`
+      : 'Kurs NBP: niedostępny';
 
   const offerLines = offers
-    .slice(0, 20)
+    .slice(0, 50)
     .map(
       (o, i) =>
-        `${i + 1}. ${o.title} | ${o.grams != null ? o.grams.toFixed(2) + ' g' : '? g'} | ${o.price.toFixed(2)} zł | premia: +${o.overSpot.toFixed(2)}% | dealer: ${o.dealer ?? '—'}`,
+        `${i + 1}. ${o.title} | ${o.grams != null ? o.grams.toFixed(3) + ' g' : '? g'} | ${o.price.toFixed(2)} zł | premia: +${o.overSpot.toFixed(2)}% | ${o.dealer ?? '—'}`,
     )
     .join('\n');
 
-  const prompt = `Jesteś ekspertem od inwestowania w złoto fizyczne. Analizujesz oferty z polskiego rynku zebrane przez NumiTracker.
+  const prompt = `Jesteś ekspertem od inwestowania w złoto fizyczne na polskim rynku. Analizujesz dane z NumiTracker.
 
-${spotText}
+${spotLine}
+Liczba ofert w zestawieniu: ${offers.length}
 
-Oferty (posortowane rosnąco po premii nad spot, max 20 pierwszych):
+OFERTY (posortowane rosnąco po premii nad spot):
 ${offerLines}
 
-Odpowiedz zwięźle po polsku (4-6 zdań):
-1. Czy są szczególnie atrakcyjne oferty i jakie?
-2. Jaka jest ogólna ocena rynku — premie niskie / typowe / wysokie?
-3. Krótka rekomendacja: czy warto teraz kupować?`;
+Przygotuj szczegółową analizę w czterech sekcjach. Pisz po polsku, konkretnie i rzeczowo. NIE używaj formatowania markdown (bez gwiazdek, bez hashtagów) — używaj wyłącznie nagłówków WIELKIMI LITERAMI i myślników dla list.
+
+OCENA RYNKU
+Oceń ogólny poziom premii (niskie / typowe / wysokie w stosunku do normy 3-8%). Jak wygląda podaż — dużo ofert czy mało? Czy coś rzuca się w oczy?
+
+TOP OKAZJE
+Wskaż 3-5 konkretnych ofert które uważasz za najlepsze. Dla każdej podaj: nazwę, wagę, cenę, premię i dlaczego ją polecasz. Uwzględnij stosunek ceny do wagi.
+
+MONETY VS SZTABKI
+Porównaj dostępne monety bulionowe i sztabki. Która kategoria ma teraz niższe premie? Jakie są różnice w płynności i rozpoznawalności?
+
+REKOMENDACJA
+Czy warto kupować teraz, czy lepiej poczekać? Podaj konkretne sugestie dla różnych budżetów (np. do 1000 zł, do 3000 zł, powyżej 5000 zł). Na co zwrócić szczególną uwagę przy zakupie?`;
 
   const res = await geminiGenerate(c.env, {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.3, maxOutputTokens: 600 },
+    generationConfig: { temperature: 0.3, maxOutputTokens: 2000 },
   });
 
   if (!res.ok) {
