@@ -2,13 +2,16 @@ import { Hono } from 'hono';
 import type {
   GemRunResult,
   GemStatus,
+  GoldAnalysisResult,
   GoldCheckResult,
+  GoldOffer,
   GoldStatus,
 } from '@life-os/shared-types';
 import type { AppContext } from '../types';
 import { requireAuth } from '../middleware/auth';
 import { checkGold } from '../lib/gold';
 import { runGemMomentum } from '../lib/gem';
+import { geminiGenerate } from '../lib/gemini';
 
 const GEM_URL = 'https://gem-strategy.dawidwilgucki9.workers.dev/status';
 
@@ -91,6 +94,66 @@ investmentsRouter.post('/gold/check', async (c) => {
       : null;
 
   const result: GoldCheckResult = await checkGold(maxPrice, maxPremium);
+  return c.json(result);
+});
+
+// POST /api/investments/gold/analyze — Gemini analysis of NumiTracker offers.
+// Body: { offers: GoldOffer[], spotPlnPerGram: number | null }
+investmentsRouter.post('/gold/analyze', async (c) => {
+  if (!c.env.GEMINI_API_KEY) return c.json({ error: 'gemini_not_configured' }, 503);
+
+  const body = await c.req
+    .json<{ offers?: GoldOffer[]; spotPlnPerGram?: number | null }>()
+    .catch(() => ({}) as { offers?: GoldOffer[]; spotPlnPerGram?: number | null });
+
+  const offers = body.offers;
+  if (!Array.isArray(offers) || offers.length === 0) {
+    return c.json({ error: 'no_offers' }, 400);
+  }
+
+  const spot = body.spotPlnPerGram ?? null;
+  const spotText =
+    spot != null
+      ? `Aktualny kurs NBP: **${spot.toFixed(2)} zł/g** (${(spot * OZ_TO_GRAMS).toFixed(2)} zł/oz).`
+      : 'Kurs NBP niedostępny.';
+
+  const offerLines = offers
+    .slice(0, 20)
+    .map(
+      (o, i) =>
+        `${i + 1}. ${o.title} | ${o.grams != null ? o.grams.toFixed(2) + ' g' : '? g'} | ${o.price.toFixed(2)} zł | premia: +${o.overSpot.toFixed(2)}% | dealer: ${o.dealer ?? '—'}`,
+    )
+    .join('\n');
+
+  const prompt = `Jesteś ekspertem od inwestowania w złoto fizyczne. Analizujesz oferty z polskiego rynku zebrane przez NumiTracker.
+
+${spotText}
+
+Oferty (posortowane rosnąco po premii nad spot, max 20 pierwszych):
+${offerLines}
+
+Odpowiedz zwięźle po polsku (4-6 zdań):
+1. Czy są szczególnie atrakcyjne oferty i jakie?
+2. Jaka jest ogólna ocena rynku — premie niskie / typowe / wysokie?
+3. Krótka rekomendacja: czy warto teraz kupować?`;
+
+  const res = await geminiGenerate(c.env, {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.3, maxOutputTokens: 600 },
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    console.error('Gemini gold analyze error:', res.status, detail);
+    return c.json({ error: 'gemini_error', detail }, 502);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = (await res.json()) as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const analysis: string = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
+
+  const result: GoldAnalysisResult = { analysis };
   return c.json(result);
 });
 

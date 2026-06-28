@@ -187,6 +187,10 @@ export interface GoldCheckResult {
   offers: GoldOffer[];
 }
 
+export interface GoldAnalysisResult {
+  analysis: string;
+}
+
 // --- GEM on-demand analysis (port of runGemStrategy) ---
 export interface GemMomentumEntry {
   name: string;
