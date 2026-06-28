@@ -144,17 +144,13 @@ export type InboxTriage =
 // Investments (read-only, proxied from external Workers)
 // ============================================================================
 
-export interface GoldAlert {
-  message: string;
-  at: IsoDateTime;
-}
-
 export interface GoldStatus {
-  spot: number;
-  currency: string;
-  alerts: GoldAlert[];
-  /** True when the data is mocked because the upstream worker was unavailable. */
-  mock?: boolean;
+  /** PLN per gram (NBP cena). */
+  pricePerGram: number;
+  /** PLN per troy ounce (pricePerGram × 31.1035). */
+  pricePerOz: number;
+  /** Date of the NBP quotation, e.g. "2026-06-28". */
+  date: IsoDate;
 }
 
 export interface GemRankingEntry {

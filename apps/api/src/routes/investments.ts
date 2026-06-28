@@ -10,9 +10,9 @@ import { requireAuth } from '../middleware/auth';
 import { checkGold } from '../lib/gold';
 import { runGemMomentum } from '../lib/gem';
 
-// External, read-only Workers. Life.OS NEVER modifies these.
-const GOLD_URL = 'https://gold-tracker.dawidwilgucki9.workers.dev/';
 const GEM_URL = 'https://gem-strategy.dawidwilgucki9.workers.dev/status';
+
+const OZ_TO_GRAMS = 31.1035;
 
 export const investmentsRouter = new Hono<AppContext>();
 investmentsRouter.use('*', requireAuth);
@@ -31,41 +31,19 @@ async function fetchJson(url: string, timeoutMs = 5000): Promise<unknown | null>
   }
 }
 
-const GOLD_MOCK: GoldStatus = {
-  spot: 9875.4,
-  currency: 'PLN',
-  alerts: [{ message: 'Mock alert: SPOT crossed 9800 PLN/oz', at: new Date().toISOString() }],
-  mock: true,
-};
-
-const GEM_MOCK: GemStatus = {
-  ranking: [
-    { ticker: 'SPY', score: 0.82 },
-    { ticker: 'QQQ', score: 0.78 },
-    { ticker: 'EEM', score: 0.69 },
-  ],
-  currentHolding: 'SPY',
-  mock: true,
-};
-
-// GET /api/investments/gold — proxy to gold-tracker (mock if unavailable).
+// GET /api/investments/gold — real-time price from NBP (PLN/g and PLN/oz).
 investmentsRouter.get('/gold', async (c) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = (await fetchJson(GOLD_URL)) as any;
-  // TODO: confirm the real gold-tracker response shape and map precisely.
-  const spot = raw?.spot ?? raw?.price ?? raw?.spotPrice;
-  if (typeof spot !== 'number') return c.json(GOLD_MOCK);
-
+  const raw = (await fetchJson('https://api.nbp.pl/api/cenyzlota/?format=json')) as
+    | { data: string; cena: number }[]
+    | null;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return c.json({ error: 'nbp_unavailable' }, 503);
+  }
+  const pricePerGram = raw[0].cena;
   const status: GoldStatus = {
-    spot,
-    currency: raw.currency ?? 'PLN',
-    alerts: Array.isArray(raw.alerts)
-      ? raw.alerts.map((a: unknown) =>
-          typeof a === 'string'
-            ? { message: a, at: new Date().toISOString() }
-            : { message: (a as any)?.message ?? String(a), at: (a as any)?.at ?? new Date().toISOString() },
-        )
-      : [],
+    pricePerGram,
+    pricePerOz: Number((pricePerGram * OZ_TO_GRAMS).toFixed(2)),
+    date: raw[0].data,
   };
   return c.json(status);
 });
@@ -74,7 +52,15 @@ investmentsRouter.get('/gold', async (c) => {
 investmentsRouter.get('/gem', async (c) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = (await fetchJson(GEM_URL)) as any;
-  // TODO: confirm the real gem-strategy /status shape and map precisely.
+  const GEM_MOCK: GemStatus = {
+    ranking: [
+      { ticker: 'SPY', score: 0.82 },
+      { ticker: 'QQQ', score: 0.78 },
+      { ticker: 'EEM', score: 0.69 },
+    ],
+    currentHolding: 'SPY',
+    mock: true,
+  };
   if (!raw || !Array.isArray(raw.ranking)) return c.json(GEM_MOCK);
 
   const status: GemStatus = {
