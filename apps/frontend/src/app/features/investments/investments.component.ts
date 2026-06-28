@@ -17,65 +17,29 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
         <button class="lo-btn-ghost" (click)="inv.load()">↻ Refresh</button>
       </div>
 
-      <div class="grid gap-4 md:grid-cols-2">
-        <!-- Gold -->
-        <section class="lo-card p-5">
-          <div class="flex items-center justify-between">
-            <h2 class="font-medium">🪙 Gold</h2>
-            @if (inv.gold()?.mock) { <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] text-amber-300">mock</span> }
+      <!-- Gold — real-time NBP -->
+      <section class="lo-card p-5">
+        <h2 class="font-medium">🪙 Gold</h2>
+        @if (inv.gold(); as g) {
+          <div class="mt-4 grid grid-cols-2 gap-4">
+            <div class="rounded-lg bg-surface-800/60 p-4">
+              <p class="text-xs font-medium uppercase text-slate-500">1 uncja (oz)</p>
+              <p class="mt-2 text-2xl font-semibold">{{ g.pricePerOz | number: '1.2-2' }}</p>
+              <p class="text-sm text-slate-400">PLN</p>
+            </div>
+            <div class="rounded-lg bg-surface-800/60 p-4">
+              <p class="text-xs font-medium uppercase text-slate-500">1 gram</p>
+              <p class="mt-2 text-2xl font-semibold">{{ g.pricePerGram | number: '1.2-2' }}</p>
+              <p class="text-sm text-slate-400">PLN</p>
+            </div>
           </div>
-          @if (inv.gold(); as g) {
-            <div class="mt-3">
-              <div class="text-3xl font-semibold">{{ g.spot | number: '1.2-2' }} <span class="text-base text-slate-400">{{ g.currency }}</span></div>
-              <p class="mt-1 text-xs text-slate-500">SPOT price</p>
-            </div>
-            <div class="mt-4">
-              <h3 class="text-xs font-medium uppercase text-slate-500">Recent alerts</h3>
-              <ul class="mt-1 space-y-1">
-                @for (a of g.alerts; track a.at) {
-                  <li class="text-sm">
-                    <span class="text-slate-400">{{ a.at | date: 'short' }}</span> — {{ a.message }}
-                  </li>
-                } @empty {
-                  <li class="text-sm text-slate-500">No alerts.</li>
-                }
-              </ul>
-            </div>
-          } @else {
-            <p class="mt-3 text-slate-500">Loading…</p>
-          }
-        </section>
-
-        <!-- GEM -->
-        <section class="lo-card p-5">
-          <div class="flex items-center justify-between">
-            <h2 class="font-medium">📊 GEM strategy</h2>
-            @if (inv.gem()?.mock) { <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] text-amber-300">mock</span> }
-          </div>
-          @if (inv.gem(); as g) {
-            <div class="mt-3 text-sm">
-              Current holding:
-              <span class="font-semibold text-emerald-400">{{ g.currentHolding ?? '—' }}</span>
-            </div>
-            <table class="mt-4 w-full text-sm">
-              <thead class="text-xs uppercase text-slate-500">
-                <tr><th class="py-1 text-left">#</th><th class="text-left">Ticker</th><th class="text-right">Score</th></tr>
-              </thead>
-              <tbody>
-                @for (r of g.ranking; track r.ticker; let i = $index) {
-                  <tr class="border-t border-surface-800">
-                    <td class="py-1 text-slate-500">{{ i + 1 }}</td>
-                    <td class="font-medium">{{ r.ticker }}</td>
-                    <td class="text-right">{{ r.score | number: '1.2-2' }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          } @else {
-            <p class="mt-3 text-slate-500">Loading…</p>
-          }
-        </section>
-      </div>
+          <p class="mt-3 text-xs text-slate-600">Źródło: NBP · notowanie z {{ g.date }}</p>
+        } @else if (inv.loading()) {
+          <p class="mt-3 text-slate-500">Pobieranie ceny…</p>
+        } @else {
+          <p class="mt-3 text-sm text-rose-400">Nie udało się pobrać danych z NBP.</p>
+        }
+      </section>
 
       <!-- Sprawdź oferty złota (odpowiednik /check kwota [premia%]) -->
       <section class="lo-card mt-4 p-5">
@@ -158,7 +122,7 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
           <button
             class="lo-btn"
             [disabled]="inv.gemRunning()"
-            (click)="inv.runGem(inv.gem()?.currentHolding ?? null)"
+            (click)="inv.runGem(inv.gemRun()?.currentHolding ?? null)"
           >
             {{ inv.gemRunning() ? 'Liczę…' : 'Uruchom analizę' }}
           </button>

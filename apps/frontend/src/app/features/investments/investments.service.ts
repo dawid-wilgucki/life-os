@@ -1,7 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import type {
   GemRunResult,
-  GemStatus,
   GoldCheckResult,
   GoldStatus,
 } from '@life-os/shared-types';
@@ -12,7 +11,6 @@ export class InvestmentsService {
   private api = inject(ApiService);
 
   readonly gold = signal<GoldStatus | null>(null);
-  readonly gem = signal<GemStatus | null>(null);
   readonly loading = signal(false);
 
   // On-demand: gold offers check (odpowiednik /check kwota [premia%]).
@@ -25,9 +23,8 @@ export class InvestmentsService {
 
   load(): void {
     this.loading.set(true);
-    this.api.get<GoldStatus>('/api/investments/gold').subscribe((g) => this.gold.set(g));
-    this.api.get<GemStatus>('/api/investments/gem').subscribe({
-      next: (g) => this.gem.set(g),
+    this.api.get<GoldStatus>('/api/investments/gold').subscribe({
+      next: (g) => this.gold.set(g),
       complete: () => this.loading.set(false),
       error: () => this.loading.set(false),
     });
