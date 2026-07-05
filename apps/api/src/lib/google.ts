@@ -7,14 +7,17 @@ import { createSupabase } from './supabase';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
+// `drive.file` only grants access to files the app itself created (or that
+// the user picked via Google Picker) — it does NOT cover the pre-existing
+// wardrobe JSON the user uploaded to Drive by hand. Writing to that file
+// (add/edit/delete wardrobe items) needs the full `drive` scope instead.
 export const GOOGLE_SCOPES = [
   'openid',
   'email',
   'profile',
   'https://www.googleapis.com/auth/tasks',
   'https://www.googleapis.com/auth/calendar',
-  'https://www.googleapis.com/auth/drive.readonly',
-  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/gmail.readonly',
 ];
 

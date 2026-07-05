@@ -84,8 +84,9 @@ Non-secret vars (`FRONTEND_ORIGIN`) live in `apps/api/wrangler.toml`.
    - `http://localhost:8787/auth/google/callback` (dev)
    - `https://<your-worker>.workers.dev/auth/google/callback` (prod)
 4. OAuth consent screen → add yourself as a **test user** (or publish).
-   Scopes used: `tasks`, `calendar`, `drive.readonly`, `gmail.readonly`,
-   `openid email profile`.
+   Scopes used: `tasks`, `calendar`, `drive` (full — the wardrobe JSON is
+   edited in place, so `drive.file`/`drive.readonly` aren't enough),
+   `gmail.readonly`, `openid email profile`.
 
 ## 4. Database migrations
 
