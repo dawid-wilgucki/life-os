@@ -9,12 +9,24 @@ export class ListsService {
 
   readonly lists = signal<ListWithItems[]>([]);
   readonly loading = signal(false);
+  /** False when the last load couldn't reach Google Tasks (expired/revoked auth). */
+  readonly googleTasksSynced = signal(true);
+  /** True when the last load failed outright (network/server error). */
+  readonly loadFailed = signal(false);
 
   load(): void {
     this.loading.set(true);
-    this.api.get<ListWithItems[]>('/api/lists').subscribe({
-      next: (l) => { this.lists.set(l); this.loading.set(false); },
-      error: () => this.loading.set(false),
+    this.api.get<{ lists: ListWithItems[]; googleTasksSynced: boolean }>('/api/lists').subscribe({
+      next: (res) => {
+        this.lists.set(res.lists);
+        this.googleTasksSynced.set(res.googleTasksSynced);
+        this.loadFailed.set(false);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loadFailed.set(true);
+        this.loading.set(false);
+      },
     });
   }
 

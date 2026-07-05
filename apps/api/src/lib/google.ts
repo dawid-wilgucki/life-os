@@ -135,6 +135,20 @@ export async function getAccessToken(
  * Authenticated fetch against a Google API. Transparently refreshes once on a
  * 401 (e.g. token revoked / cache stale).
  */
+function authFailedResponse(err: unknown): Response {
+  return new Response(JSON.stringify({ error: 'google_auth_failed', detail: String(err) }), {
+    status: 401,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+/**
+ * Authenticated fetch against a Google API. Transparently refreshes once on a
+ * 401 (e.g. token revoked / cache stale). If no valid token can be obtained at
+ * all (revoked/missing refresh_token), this returns a 401 Response instead of
+ * throwing — callers already treat a non-ok Response as "Google unavailable"
+ * and degrade gracefully, whereas a thrown error would crash the whole route.
+ */
 export async function googleFetch(
   env: Env,
   accountId: string,
@@ -147,10 +161,20 @@ export async function googleFetch(
     return { ...init, headers };
   };
 
-  let token = await getAccessToken(env, accountId);
+  let token: string;
+  try {
+    token = await getAccessToken(env, accountId);
+  } catch (err) {
+    return authFailedResponse(err);
+  }
+
   let res = await fetch(url, withAuth(token));
   if (res.status === 401) {
-    token = await getAccessToken(env, accountId, true);
+    try {
+      token = await getAccessToken(env, accountId, true);
+    } catch (err) {
+      return authFailedResponse(err);
+    }
     res = await fetch(url, withAuth(token));
   }
   return res;
