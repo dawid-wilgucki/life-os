@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type { ListItem, ListWithItems } from '@life-os/shared-types';
 import { ListsService } from './lists.service';
+import { AuthService } from '../../core/auth.service';
 
 type CreateDialogState = { type: 'list' | 'note'; title: string; content: string } | null;
 
@@ -23,11 +24,23 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
         </div>
       </div>
 
-      @if (svc.loading()) {
-        <p class="text-slate-400">Ładowanie…</p>
-      } @else if (svc.lists().length === 0) {
-        <p class="text-slate-400">Brak list. Utwórz pierwszą!</p>
+      @if (svc.loadFailed()) {
+        <p class="text-red-400">
+          Nie udało się wczytać list. Spróbuj odświeżyć stronę.
+        </p>
       } @else {
+        @if (!svc.googleTasksSynced()) {
+          <p class="mb-4 rounded-lg border border-amber-700/50 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
+            ⚠️ Nie udało się zsynchronizować z Google Tasks — Twoje zadania z Google mogą tu chwilowo nie być widoczne.
+            Spróbuj <button type="button" class="underline" (click)="reconnectGoogle()">połączyć konto Google ponownie</button>.
+          </p>
+        }
+
+        @if (svc.loading()) {
+          <p class="text-slate-400">Ładowanie…</p>
+        } @else if (svc.lists().length === 0) {
+          <p class="text-slate-400">Brak list. Utwórz pierwszą!</p>
+        } @else {
         <!-- Card grid — Keep-style -->
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           @for (list of svc.lists(); track list.id) {
@@ -79,6 +92,7 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
             </div>
           }
         </div>
+        }
       }
 
       <!-- View/edit modal -->
@@ -206,6 +220,7 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
 })
 export class TasksComponent implements OnInit {
   svc = inject(ListsService);
+  private auth = inject(AuthService);
 
   selectedList = signal<ListWithItems | null>(null);
   newItemText = '';
@@ -215,6 +230,10 @@ export class TasksComponent implements OnInit {
 
   ngOnInit(): void {
     this.svc.load();
+  }
+
+  reconnectGoogle(): void {
+    this.auth.login();
   }
 
   // ── View modal ────────────────────────────────────────────────────────────

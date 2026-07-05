@@ -427,7 +427,8 @@ ZASADY:
 - Nie wymyślaj danych — bazuj wyłącznie na kontekście powyżej.
 - Po wykonaniu akcji potwierdź co zostało zrobione.`;
 
-  let currentContents = body.messages.map((m) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let currentContents: Array<{ role: string; parts: any[] }> = body.messages.map((m) => ({
     role: m.role,
     parts: [{ text: m.text }],
   }));

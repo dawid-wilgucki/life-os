@@ -65,7 +65,10 @@ async function resolveGoogleList(
   if (cached) return JSON.parse(cached) as { id: string; title: string };
 
   const res = await googleFetch(env, accountId, `${TASKS_API}/users/@me/lists?maxResults=100`);
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.error('resolveGoogleList failed:', res.status, await res.text());
+    return null;
+  }
   const data = (await res.json()) as { items?: { id: string; title: string }[] };
   const first = data.items?.[0];
   if (!first) return null;
@@ -138,7 +141,10 @@ listsRouter.get('/', async (c) => {
   if (google) lists.push(google);
 
   lists.sort((a, b) => a.orderIndex - b.orderIndex || a.createdAt.localeCompare(b.createdAt));
-  return c.json(lists);
+  // `google === null` means the Google Tasks list couldn't be synced this
+  // request (expired/revoked auth, Google outage) — surfaced so the frontend
+  // can tell "no lists yet" apart from "sync is broken, reconnect Google".
+  return c.json({ lists, googleTasksSynced: google !== null });
 });
 
 // POST /api/lists — create a new local list or note.
