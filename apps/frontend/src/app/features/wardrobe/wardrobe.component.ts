@@ -142,11 +142,12 @@ import { PageBackgroundComponent } from '../../shared/page-background.component'
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               @for (item of items(section.key); track item.id; let idx = $index) {
                 <div class="lo-card group relative overflow-hidden">
-                  <!-- Delete button -->
+                  <!-- Delete button — always visible (not hover-only) so it works on touch devices -->
                   <button
-                    class="absolute right-1 top-1 z-10 hidden h-5 w-5 items-center justify-center rounded bg-red-900/70 text-[10px] text-red-300 hover:bg-red-700 group-hover:flex"
+                    class="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded bg-red-900/70 text-xs text-red-300 hover:bg-red-700"
                     [disabled]="wardrobe.saving()"
                     (click)="deleteItem(section.key, idx)"
+                    aria-label="Usuń"
                     title="Usuń"
                   >
                     ×
