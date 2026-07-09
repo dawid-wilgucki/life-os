@@ -1,8 +1,10 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import type { InboxItem } from '@life-os/shared-types';
 import { InboxService } from './inbox.service';
+import { ToastService } from '../../core/toast.service';
 import { TasksService } from '../tasks/tasks.service';
 import { PageBackgroundComponent } from '../../shared/page-background.component';
 
@@ -70,6 +72,9 @@ function ymd(d: Date): string {
 export class InboxComponent implements OnInit {
   inbox = inject(InboxService);
   tasks = inject(TasksService);
+  private toast = inject(ToastService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   draft = '';
   listChoice: Record<string, string | undefined> = {};
@@ -78,13 +83,40 @@ export class InboxComponent implements OnInit {
   ngOnInit(): void {
     this.inbox.load();
     if (this.tasks.lists().length === 0) this.tasks.loadLists();
+    this.captureSharedContent();
+  }
+
+  /**
+   * PWA share target: Android's "Udostępnij → Life.OS" opens
+   * /inbox?title=…&text=…&url=… (see manifest.json). Capture it straight into
+   * the inbox; on failure the content lands in the input instead of vanishing.
+   */
+  private captureSharedContent(): void {
+    const qp = this.route.snapshot.queryParamMap;
+    const shared = [qp.get('title'), qp.get('text'), qp.get('url')]
+      .map((v) => v?.trim())
+      .filter((v): v is string => !!v)
+      .join('\n');
+    if (!shared) return;
+
+    // Drop the params immediately so a refresh doesn't re-add the item.
+    this.router.navigate([], { queryParams: {}, replaceUrl: true });
+    this.inbox.add(shared).subscribe({
+      next: () => this.toast.success('Dodano do inboxa.'),
+      error: () => {
+        this.draft = shared;
+        this.toast.error('Nie udało się zapisać — treść czeka w polu poniżej.');
+      },
+    });
   }
 
   capture(): void {
     const text = this.draft.trim();
     if (!text) return;
-    this.inbox.add(text);
-    this.draft = '';
+    this.inbox.add(text).subscribe({
+      next: () => (this.draft = ''),
+      error: () => this.toast.error('Nie udało się dodać do inboxa.'),
+    });
   }
 
   toTask(item: InboxItem): void {

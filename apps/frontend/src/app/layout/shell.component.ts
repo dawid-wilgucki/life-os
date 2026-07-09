@@ -1,7 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, HostListener, computed, inject, signal } from '@angular/core';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map } from 'rxjs';
+import { FormsModule } from '@angular/forms';
 import { AuthService } from '../core/auth.service';
 import { ToastService } from '../core/toast.service';
+import { InboxService } from '../features/inbox/inbox.service';
 
 interface NavItem {
   path: string;
@@ -12,7 +16,7 @@ interface NavItem {
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, FormsModule],
   template: `
     <div class="flex min-h-screen">
       <!-- Sidebar (drawer on mobile, fixed on lg+) -->
@@ -103,6 +107,45 @@ interface NavItem {
         </button>
       </nav>
 
+      <!-- FAB: quick capture to inbox (mobile only; hidden where a capture input already exists) -->
+      @if (showFab()) {
+        <button
+          class="lo-btn fixed right-4 z-40 h-14 w-14 rounded-full text-2xl shadow-lg lg:hidden"
+          style="bottom: calc(var(--bottom-nav-h) + 1rem)"
+          (click)="openQuickAdd()"
+          aria-label="Szybki zapis do inboxa"
+        >+</button>
+      }
+
+      <!-- Quick capture bottom sheet -->
+      @if (quickAddOpen()) {
+        <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/60" (click)="closeQuickAdd()">
+          <div
+            class="w-full max-w-md rounded-t-2xl border border-surface-800 bg-surface-900 p-4"
+            style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px))"
+            (click)="$event.stopPropagation()"
+          >
+            <h2 class="mb-3 text-sm font-medium text-slate-300">📥 Szybki zapis do inboxa</h2>
+            <form (ngSubmit)="submitQuickAdd()">
+              <textarea
+                class="lo-input resize-none"
+                rows="3"
+                placeholder="Zapisz myśl…"
+                [(ngModel)]="quickText"
+                name="quick-text"
+                autofocus
+              ></textarea>
+              <div class="mt-3 flex justify-end gap-2">
+                <button type="button" class="lo-btn-ghost" (click)="closeQuickAdd()">Anuluj</button>
+                <button type="submit" class="lo-btn px-4" [disabled]="quickSaving() || !quickText.trim()">
+                  {{ quickSaving() ? 'Zapisuję…' : 'Dodaj' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      }
+
       <!-- Toasts (above the bottom nav) -->
       @if (toastSvc.toasts().length) {
         <div
@@ -131,8 +174,62 @@ interface NavItem {
 })
 export class ShellComponent {
   private auth = inject(AuthService);
+  private inbox = inject(InboxService);
+  private router = inject(Router);
   toastSvc = inject(ToastService);
   sidebarOpen = signal(false);
+
+  // ── Quick capture (FAB → bottom sheet → inbox) ────────────────────────────
+
+  private currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  /** Chat and Inbox already have their own capture inputs the FAB would cover. */
+  showFab = computed(() => {
+    const url = this.currentUrl();
+    return !url.startsWith('/chat') && !url.startsWith('/inbox');
+  });
+
+  quickAddOpen = signal(false);
+  quickSaving = signal(false);
+  quickText = '';
+
+  openQuickAdd(): void {
+    this.quickAddOpen.set(true);
+  }
+
+  closeQuickAdd(): void {
+    this.quickAddOpen.set(false);
+  }
+
+  submitQuickAdd(): void {
+    const text = this.quickText.trim();
+    if (!text || this.quickSaving()) return;
+    this.quickSaving.set(true);
+    this.inbox.add(text).subscribe({
+      next: () => {
+        this.quickSaving.set(false);
+        this.quickText = '';
+        this.quickAddOpen.set(false);
+        this.toastSvc.success('Dodano do inboxa.');
+      },
+      error: () => {
+        this.quickSaving.set(false);
+        this.toastSvc.error('Nie udało się zapisać. Spróbuj ponownie.');
+      },
+    });
+  }
+
+  @HostListener('window:keydown.escape')
+  onEscape(): void {
+    if (this.quickAddOpen()) this.closeQuickAdd();
+    else if (this.sidebarOpen()) this.sidebarOpen.set(false);
+  }
 
   nav: NavItem[] = [
     { path: '', label: 'Pulpit', icon: '🏠' },

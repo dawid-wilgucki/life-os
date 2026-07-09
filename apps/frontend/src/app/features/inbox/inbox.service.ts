@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import type { InboxItem } from '@life-os/shared-types';
-import { Observable } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 
 @Injectable({ providedIn: 'root' })
@@ -19,10 +19,11 @@ export class InboxService {
     });
   }
 
-  add(text: string): void {
-    this.api.post<InboxItem>('/api/inbox', { text }).subscribe((item) => {
-      this.items.update((list) => [item, ...list]);
-    });
+  /** Adds an item and prepends it to the local list; callers handle errors. */
+  add(text: string): Observable<InboxItem> {
+    return this.api.post<InboxItem>('/api/inbox', { text }).pipe(
+      tap((item) => this.items.update((list) => [item, ...list])),
+    );
   }
 
   archive(id: string): Observable<unknown> {
