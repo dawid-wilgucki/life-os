@@ -23,7 +23,9 @@ interface DisplayMessage {
   imports: [FormsModule, PageBackgroundComponent],
   template: `
     <app-page-background theme="chat" />
-    <div class="relative flex h-[calc(100vh-3.5rem)] flex-col lg:h-screen">
+    <!-- Fill exactly the space between the top bar and bottom nav (dvh tracks the
+         mobile browser chrome; the vars are 0 on desktop). -->
+    <div class="relative flex flex-col" style="height: calc(100dvh - var(--top-bar-h) - var(--bottom-nav-h))">
 
       <!-- Header -->
       <div class="border-b border-surface-800 px-4 py-3">

@@ -17,19 +17,21 @@ import { ApiService } from '../../core/api.service';
               {{ plan()!.generatedAt | date: 'd MMM' }}
             </span>
             <button
-              class="lo-btn-ghost px-2 text-xs"
+              class="lo-btn-ghost h-9 w-9 p-0"
               [disabled]="addingToList()"
               (click)="addToShoppingList()"
               title="Dodaj składniki do listy zakupów"
+              aria-label="Dodaj składniki do listy zakupów"
             >
               {{ addingToList() ? '…' : '📋' }}
             </button>
           }
           <button
-            class="lo-btn-ghost px-2 text-xs"
+            class="lo-btn-ghost h-9 w-9 p-0"
             [disabled]="loading()"
             (click)="regenerate()"
             title="Wygeneruj nowy jadłospis"
+            aria-label="Wygeneruj nowy jadłospis"
           >
             {{ loading() ? '…' : '↺' }}
           </button>

@@ -145,7 +145,9 @@ dayPlanRouter.get('/', async (c) => {
   const accountId = c.get('session').sub;
   const now = new Date();
   const today = ymd(now);
-  const cacheKey = `day-plan:${today}`;
+  // Scoped per account so a hypothetical second account never reads another
+  // user's cached plan.
+  const cacheKey = `day-plan:${accountId}:${today}`;
   const refresh = c.req.query('refresh') === 'true';
 
   if (!refresh) {

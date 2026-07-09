@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import type { CalendarEvent, HabitWithStreak, LifeProfile, ListWithItems, Trip } from '@life-os/shared-types';
@@ -14,7 +14,7 @@ import { MealPlanWidgetComponent } from './meal-plan-widget.component';
 import { OutfitSuggestionWidgetComponent } from './outfit-suggestion-widget.component';
 import { DayPlanWidgetComponent } from './day-plan-widget.component';
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+import { WEEKDAYS_PL } from '../../shared/weekdays';
 
 const SECTION_LABELS: Record<string, string> = {
   praca: '💼 Praca', dom: '🏠 Dom', cele: '🎯 Cele',
@@ -33,8 +33,8 @@ function ymd(d: Date): string {
   template: `
     <app-page-background theme="dashboard" />
     <div class="relative mx-auto max-w-5xl p-6">
-      <h1 class="text-2xl font-semibold">Dashboard</h1>
-      <p class="text-sm text-slate-400">Your day at a glance.</p>
+      <h1 class="text-2xl font-semibold">Pulpit</h1>
+      <p class="text-sm text-slate-400">Twój dzień w pigułce.</p>
 
       <!-- Plan dnia — najważniejsza sekcja -->
       <app-day-plan-widget class="mt-6 block" />
@@ -54,7 +54,7 @@ function ymd(d: Date): string {
               {{ dashboardList()?.locked ? '⛓️' : '✅' }}
               {{ dashboardList()?.title ?? 'To-do' }}
             </h2>
-            <a routerLink="/tasks" class="text-xs text-indigo-400 hover:underline">Open tasks →</a>
+            <a routerLink="/tasks" class="text-xs text-indigo-400 hover:underline">Otwórz →</a>
           </header>
           @if (dashboardList(); as dl) {
             @if (dl.type === 'note') {
@@ -71,7 +71,7 @@ function ymd(d: Date): string {
                     <span class="flex-1">{{ item.text }}</span>
                   </li>
                 } @empty {
-                  <li class="text-sm text-slate-500">Nothing open. 🎉</li>
+                  <li class="text-sm text-slate-500">Wszystko zrobione. 🎉</li>
                 }
               </ul>
             }
@@ -83,8 +83,8 @@ function ymd(d: Date): string {
         <!-- Mini calendar -->
         <section class="lo-card p-4">
           <header class="mb-3 flex items-center justify-between">
-            <h2 class="font-medium">📅 {{ monthLabel() }}</h2>
-            <a routerLink="/calendar" class="text-xs text-indigo-400 hover:underline">Open calendar →</a>
+            <h2 class="font-medium capitalize">📅 {{ monthLabel() }}</h2>
+            <a routerLink="/calendar" class="text-xs text-indigo-400 hover:underline">Otwórz →</a>
           </header>
           <div class="grid grid-cols-7 gap-1 text-center">
             @for (wd of weekdays; track wd) {
@@ -118,11 +118,11 @@ function ymd(d: Date): string {
                 (click)="openEvent(e)"
               >
                 <span class="w-20 shrink-0 text-slate-400">{{ e.start | date: 'EEE d MMM' }}</span>
-                <span class="shrink-0 text-slate-500">{{ e.allDay ? 'all day' : (e.start | date: 'HH:mm') }}</span>
+                <span class="shrink-0 text-slate-500">{{ e.allDay ? 'cały dzień' : (e.start | date: 'HH:mm') }}</span>
                 <span class="min-w-0 flex-1 truncate text-slate-200" [title]="e.summary">{{ e.summary }}</span>
               </li>
             } @empty {
-              <li class="text-xs text-slate-500">No upcoming events.</li>
+              <li class="text-xs text-slate-500">Brak nadchodzących wydarzeń.</li>
             }
           </ul>
         </section>
@@ -130,8 +130,8 @@ function ymd(d: Date): string {
         <!-- Habits (weekly) -->
         <section class="lo-card p-4">
           <header class="mb-3 flex items-center justify-between">
-            <h2 class="font-medium">🔥 Habits this week</h2>
-            <a routerLink="/habits" class="text-xs text-indigo-400 hover:underline">Open habits →</a>
+            <h2 class="font-medium">🔥 Nawyki w tym tygodniu</h2>
+            <a routerLink="/habits" class="text-xs text-indigo-400 hover:underline">Otwórz →</a>
           </header>
           <ul class="space-y-2.5">
             @for (h of habits(); track h.id) {
@@ -154,7 +154,7 @@ function ymd(d: Date): string {
                 <span class="ml-auto text-xs text-slate-500">{{ weekCount(h) }}/7</span>
               </li>
             } @empty {
-              <li class="text-sm text-slate-500">No habits yet.</li>
+              <li class="text-sm text-slate-500">Brak nawyków.</li>
             }
           </ul>
         </section>
@@ -162,8 +162,8 @@ function ymd(d: Date): string {
         <!-- Upcoming trips -->
         <section class="lo-card p-4">
           <header class="mb-3 flex items-center justify-between">
-            <h2 class="font-medium">🚆 Upcoming trips</h2>
-            <a routerLink="/trips" class="text-xs text-indigo-400 hover:underline">Open trips →</a>
+            <h2 class="font-medium">🚆 Nadchodzące podróże</h2>
+            <a routerLink="/trips" class="text-xs text-indigo-400 hover:underline">Otwórz →</a>
           </header>
           <ul class="space-y-2">
             @for (t of upcomingTrips(); track t.id) {
@@ -172,7 +172,7 @@ function ymd(d: Date): string {
                 <span class="shrink-0 text-xs text-slate-400">{{ t.departureAt | date: 'EEE d MMM, HH:mm' }}</span>
               </li>
             } @empty {
-              <li class="text-sm text-slate-500">No upcoming trips.</li>
+              <li class="text-sm text-slate-500">Brak podróży.</li>
             }
           </ul>
         </section>
@@ -215,7 +215,7 @@ function ymd(d: Date): string {
           <div class="lo-card w-full max-w-sm p-5" (click)="$event.stopPropagation()">
             <header class="mb-3 flex items-start justify-between gap-2">
               <h2 class="min-w-0 break-words text-lg font-medium">{{ ev.summary }}</h2>
-              <button class="lo-btn-ghost shrink-0 px-2 py-1 text-xs" (click)="closeEvent()">✕</button>
+              <button class="lo-btn-ghost h-10 w-10 shrink-0" (click)="closeEvent()" aria-label="Zamknij">✕</button>
             </header>
             <dl class="space-y-1.5 text-sm">
               <div class="flex gap-2">
@@ -260,7 +260,7 @@ export class DashboardComponent implements OnInit {
   private tripsSvc = inject(TripsService);
   private api = inject(ApiService);
 
-  weekdays = WEEKDAYS;
+  weekdays = WEEKDAYS_PL;
   habits = this.habitsSvc.habits;
 
   private anchor = new Date();
@@ -289,7 +289,7 @@ export class DashboardComponent implements OnInit {
   }
 
   monthLabel = computed(() =>
-    this.anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+    this.anchor.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' }),
   );
 
   /** The list with the lowest order_index — the one surfaced on the dashboard. */
@@ -297,6 +297,11 @@ export class DashboardComponent implements OnInit {
 
   selectedEvent = signal<CalendarEvent | null>(null);
   deletingEvent = signal(false);
+
+  @HostListener('window:keydown.escape')
+  onEscape(): void {
+    if (this.selectedEvent()) this.closeEvent();
+  }
 
   openEvent(e: CalendarEvent): void {
     this.selectedEvent.set(e);

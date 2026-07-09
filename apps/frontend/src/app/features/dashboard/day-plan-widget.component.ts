@@ -14,10 +14,11 @@ import { ApiService } from '../../core/api.service';
             <span class="text-[11px] text-slate-500">{{ plan()!.generated_at }}</span>
           }
           <button
-            class="lo-btn-ghost px-2 text-xs"
+            class="lo-btn-ghost h-9 w-9 p-0"
             [disabled]="loading()"
             (click)="refresh()"
             title="Wygeneruj nowy plan dnia"
+            aria-label="Wygeneruj nowy plan dnia"
           >
             {{ loading() ? '…' : '↺' }}
           </button>

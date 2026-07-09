@@ -7,6 +7,19 @@
   body {
     @apply h-full;
   }
+  /* Layout chrome heights, shared by the shell, chat and page padding.
+     Mobile: fixed top bar + bottom tab bar (both include the notch/home-bar
+     safe areas). Desktop (lg+): static sidebar, no bars. */
+  :root {
+    --top-bar-h: calc(3.5rem + env(safe-area-inset-top, 0px));
+    --bottom-nav-h: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+  @media (min-width: 1024px) {
+    :root {
+      --top-bar-h: 0px;
+      --bottom-nav-h: 0px;
+    }
+  }
   /* One consistent app-wide background (subtle dark navy gradient, fixed).
      No per-page images/textures — see PageBackgroundComponent (accent only). */
   body {
