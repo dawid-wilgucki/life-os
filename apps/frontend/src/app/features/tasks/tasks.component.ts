@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type { ListItem, ListWithItems } from '@life-os/shared-types';
 import { ListsService } from './lists.service';
@@ -13,14 +13,14 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
   template: `
     <div class="p-6">
       <!-- Header -->
-      <div class="mb-6 flex items-center justify-between">
+      <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 class="text-2xl font-semibold">Listy</h1>
           <p class="text-sm text-slate-400">Twoje notatki i listy zadań.</p>
         </div>
-        <div class="flex gap-2">
-          <button class="lo-btn-ghost" (click)="openCreateDialog('list')">+ Nowa lista</button>
-          <button class="lo-btn-ghost" (click)="openCreateDialog('note')">+ Nowa notatka</button>
+        <div class="flex shrink-0 gap-2">
+          <button class="lo-btn-ghost border border-surface-700" (click)="openCreateDialog('list')">+ Lista</button>
+          <button class="lo-btn-ghost border border-surface-700" (click)="openCreateDialog('note')">+ Notatka</button>
         </div>
       </div>
 
@@ -43,9 +43,9 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
         } @else {
         <!-- Card grid — Keep-style -->
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          @for (list of svc.lists(); track list.id) {
+          @for (list of svc.lists(); track list.id; let idx = $index; let last = $last) {
             <div
-              class="lo-card cursor-pointer select-none p-4 transition hover:ring-1 hover:ring-indigo-500"
+              class="lo-card relative cursor-pointer select-none p-4 transition hover:ring-1 hover:ring-indigo-500"
               draggable="true"
               [class.opacity-40]="dragId() === list.id"
               [class.ring-2]="dragOverId() === list.id"
@@ -57,11 +57,29 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
               (drop)="onDrop($event, list.id)"
               (dragend)="onDragEnd()"
             >
-              <h3 class="mb-2 truncate text-sm font-medium">
+              <h3 class="mb-2 truncate pr-6 text-sm font-medium">
                 @if (list.locked) { <span class="mr-1" title="Zsynchronizowane z Google Tasks">⛓️</span> }
                 @if (list.pinned) { <span class="mr-1">📌</span> }
                 {{ list.type === 'note' ? '📝 ' : '' }}{{ list.title }}
               </h3>
+
+              <!-- Touch reorder (HTML5 drag&drop doesn't fire on touch) -->
+              <div class="absolute right-1 top-1 flex lg:hidden">
+                @if (idx > 0) {
+                  <button
+                    class="flex h-8 w-8 items-center justify-center text-slate-500"
+                    (click)="move(list.id, -1); $event.stopPropagation()"
+                    aria-label="Przesuń wcześniej"
+                  >↑</button>
+                }
+                @if (!last) {
+                  <button
+                    class="flex h-8 w-8 items-center justify-center text-slate-500"
+                    (click)="move(list.id, 1); $event.stopPropagation()"
+                    aria-label="Przesuń dalej"
+                  >↓</button>
+                }
+              </div>
 
               @if (list.type === 'note') {
                 <p class="line-clamp-3 text-xs text-slate-400">{{ list.content || '(pusta notatka)' }}</p>
@@ -96,63 +114,69 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
       }
 
       <!-- View/edit modal -->
-      @if (selectedList()) {
+      @if (selectedList(); as sel) {
         <div
           class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           (click)="closeList()"
         >
           <div
             class="lo-card flex w-full max-w-md flex-col p-6"
-            style="max-height: 80vh"
+            style="max-height: 80dvh"
             (click)="$event.stopPropagation()"
           >
             <header class="mb-4 flex items-center justify-between gap-2">
-              <h2 class="truncate text-lg font-medium">{{ selectedList()!.title }}</h2>
+              <h2 class="truncate text-lg font-medium">{{ sel.title }}</h2>
               <div class="flex shrink-0 items-center gap-2">
-                @if (selectedList()!.locked) {
+                @if (sel.locked) {
                   <span class="text-xs text-slate-500" title="Lista zsynchronizowana z Google Tasks — nie można jej usunąć">⛓️ Google Tasks</span>
                 } @else {
                   <button
                     class="lo-btn-ghost text-xs text-red-400 hover:bg-red-900/20 hover:text-red-300"
-                    (click)="deleteList(selectedList()!.id)"
+                    (click)="deleteList(sel.id)"
                   >🗑 Usuń</button>
                 }
-                <button class="lo-btn-ghost text-xs" (click)="closeList()">✕</button>
+                <button class="lo-btn-ghost px-3 py-2 text-sm" (click)="closeList()" aria-label="Zamknij">✕</button>
               </div>
             </header>
 
-            @if (selectedList()!.type === 'note') {
+            @if (sel.type === 'note') {
               <textarea
                 class="lo-input flex-1 resize-none text-sm"
                 rows="10"
-                [value]="selectedList()!.content ?? ''"
+                [value]="sel.content ?? ''"
                 placeholder="Treść notatki…"
                 (blur)="onNoteBlur($event)"
               ></textarea>
             } @else {
               <!-- List items -->
-              <ul class="flex-1 space-y-2 overflow-y-auto">
-                @for (item of selectedList()!.items; track item.id) {
-                  <li class="group flex items-center gap-2">
+              <ul class="flex-1 space-y-1 overflow-y-auto">
+                @for (item of sel.items; track item.id) {
+                  <li class="flex items-center gap-1">
                     <button
-                      class="flex h-4 w-4 shrink-0 items-center justify-center rounded border transition"
-                      [class.border-emerald-500]="item.checked"
-                      [class.bg-emerald-500]="item.checked"
-                      [class.border-surface-600]="!item.checked"
+                      class="flex h-9 w-9 shrink-0 items-center justify-center"
                       (click)="toggleItem(item)"
+                      [attr.aria-label]="item.checked ? 'Odznacz' : 'Odhacz'"
                     >
-                      @if (item.checked) {
-                        <span class="text-[10px] text-white">✓</span>
-                      }
+                      <span
+                        class="flex h-5 w-5 items-center justify-center rounded border transition"
+                        [class.border-emerald-500]="item.checked"
+                        [class.bg-emerald-500]="item.checked"
+                        [class.border-surface-600]="!item.checked"
+                      >
+                        @if (item.checked) {
+                          <span class="text-[10px] text-white">✓</span>
+                        }
+                      </span>
                     </button>
                     <span
-                      class="flex-1 text-sm"
+                      class="min-w-0 flex-1 break-words text-sm"
                       [class.line-through]="item.checked"
                       [class.text-slate-500]="item.checked"
                     >{{ item.text }}</span>
                     <button
-                      class="invisible text-slate-600 transition hover:text-red-400 group-hover:visible"
+                      class="flex h-9 w-9 shrink-0 items-center justify-center text-slate-500 transition hover:text-red-400"
                       (click)="deleteItem(item.id)"
+                      aria-label="Usuń pozycję"
                     >✕</button>
                   </li>
                 } @empty {
@@ -172,7 +196,7 @@ type CreateDialogState = { type: 'list' | 'note'; title: string; content: string
                   name="new-item"
                   autocomplete="off"
                 />
-                <button type="submit" class="lo-btn shrink-0 px-3 text-sm">+</button>
+                <button type="submit" class="lo-btn shrink-0 px-4 text-sm">+</button>
               </form>
             }
           </div>
@@ -222,7 +246,13 @@ export class TasksComponent implements OnInit {
   svc = inject(ListsService);
   private auth = inject(AuthService);
 
-  selectedList = signal<ListWithItems | null>(null);
+  private selectedId = signal<string | null>(null);
+  /** The open list, always read from the service so optimistic updates/rollbacks show. */
+  selectedList = computed<ListWithItems | null>(() => {
+    const id = this.selectedId();
+    return id ? (this.svc.lists().find((l) => l.id === id) ?? null) : null;
+  });
+
   newItemText = '';
   dragId = signal<string | null>(null);
   dragOverId = signal<string | null>(null);
@@ -236,14 +266,20 @@ export class TasksComponent implements OnInit {
     this.auth.login();
   }
 
+  @HostListener('window:keydown.escape')
+  onEscape(): void {
+    if (this.createDialog()) this.closeCreateDialog();
+    else if (this.selectedId()) this.closeList();
+  }
+
   // ── View modal ────────────────────────────────────────────────────────────
 
   openList(list: ListWithItems): void {
-    this.selectedList.set({ ...list });
+    this.selectedId.set(list.id);
   }
 
   closeList(): void {
-    this.selectedList.set(null);
+    this.selectedId.set(null);
     this.newItemText = '';
   }
 
@@ -256,38 +292,24 @@ export class TasksComponent implements OnInit {
     const text = this.newItemText.trim();
     const list = this.selectedList();
     if (!text || !list) return;
-    this.svc.addItem(list.id, text).subscribe((item) => {
-      this.selectedList.update((l) => l ? { ...l, items: [...l.items, item] } : l);
-      this.svc.lists.update((all) =>
-        all.map((l) => (l.id === list.id ? { ...l, items: [...l.items, item] } : l)),
-      );
-    });
+    this.svc.addItem(list.id, text);
     this.newItemText = '';
   }
 
   toggleItem(item: ListItem): void {
     const list = this.selectedList();
-    if (!list) return;
-    this.svc.toggleItem(list.id, item);
-    const next = !item.checked;
-    this.selectedList.update((l) =>
-      l ? { ...l, items: l.items.map((i) => (i.id === item.id ? { ...i, checked: next } : i)) } : l,
-    );
+    if (list) this.svc.toggleItem(list.id, item);
   }
 
   deleteItem(itemId: string): void {
     const list = this.selectedList();
-    if (!list) return;
-    this.svc.deleteItem(list.id, itemId);
-    this.selectedList.update((l) => l ? { ...l, items: l.items.filter((i) => i.id !== itemId) } : l);
+    if (list) this.svc.deleteItem(list.id, itemId);
   }
 
   onNoteBlur(event: Event): void {
     const list = this.selectedList();
     if (!list) return;
-    const content = (event.target as HTMLTextAreaElement).value;
-    this.svc.updateContent(list.id, content);
-    this.selectedList.update((l) => l ? { ...l, content } : l);
+    this.svc.updateContent(list.id, (event.target as HTMLTextAreaElement).value);
   }
 
   // ── Create dialog ─────────────────────────────────────────────────────────
@@ -307,7 +329,18 @@ export class TasksComponent implements OnInit {
     this.closeCreateDialog();
   }
 
-  // ── Drag-to-reorder (HTML5 DnD) ───────────────────────────────────────────
+  // ── Reorder: drag on desktop, ↑/↓ buttons on touch ───────────────────────
+
+  move(id: string, delta: number): void {
+    const current = [...this.svc.lists()];
+    const from = current.findIndex((l) => l.id === id);
+    const to = from + delta;
+    if (from === -1 || to < 0 || to >= current.length) return;
+    const [moved] = current.splice(from, 1);
+    current.splice(to, 0, moved);
+    this.svc.lists.set(current);
+    this.svc.reorder(current.map((l) => l.id));
+  }
 
   onDragStart(event: DragEvent, id: string): void {
     this.dragId.set(id);
@@ -344,10 +377,4 @@ export class TasksComponent implements OnInit {
     this.dragId.set(null);
     this.dragOverId.set(null);
   }
-
-  // Computed for template — unused direct computed, keep as method for clarity
-  checkedCount = computed(() => {
-    const l = this.selectedList();
-    return l ? l.items.filter((i) => i.checked).length : 0;
-  });
 }

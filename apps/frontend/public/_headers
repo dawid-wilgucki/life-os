@@ -13,3 +13,15 @@
   Cache-Control: public, max-age=31536000, immutable
 /*.css
   Cache-Control: public, max-age=31536000, immutable
+
+# The Angular service worker and its manifest are NOT content-hashed — they
+# must be revalidated on every load or clients get stuck on old builds.
+# (Later rules override the /*.js wildcard above.)
+/ngsw-worker.js
+  Cache-Control: no-cache
+/ngsw.json
+  Cache-Control: no-cache
+/safety-worker.js
+  Cache-Control: no-cache
+/worker-basic.min.js
+  Cache-Control: no-cache

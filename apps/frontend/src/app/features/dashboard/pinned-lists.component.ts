@@ -1,13 +1,12 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import type { ListWithItems } from '@life-os/shared-types';
-import { ApiService } from '../../core/api.service';
+import { ListsService } from '../tasks/lists.service';
 
 @Component({
   selector: 'app-pinned-lists',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   template: `
     @for (list of lists(); track list.id) {
       <section class="lo-card flex min-w-0 max-w-full flex-col p-4">
@@ -20,15 +19,20 @@ import { ApiService } from '../../core/api.service';
 
         <ul class="flex-1 space-y-1.5 overflow-y-auto">
           @for (item of list.items; track item.id) {
-            <li class="flex min-w-0 items-center gap-2">
+            <li class="flex min-w-0 items-center gap-1">
               <button
-                class="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition"
-                [class.border-emerald-500]="item.checked"
-                [class.bg-emerald-500]="item.checked"
-                [class.border-surface-600]="!item.checked"
-                (click)="toggle(list, item)"
+                class="flex h-9 w-9 shrink-0 items-center justify-center"
+                (click)="svc.toggleItem(list.id, item)"
+                [attr.aria-label]="item.checked ? 'Odznacz' : 'Odhacz'"
               >
-                @if (item.checked) { <span class="text-[10px] text-white">✓</span> }
+                <span
+                  class="flex h-5 w-5 items-center justify-center rounded border transition"
+                  [class.border-emerald-500]="item.checked"
+                  [class.bg-emerald-500]="item.checked"
+                  [class.border-surface-600]="!item.checked"
+                >
+                  @if (item.checked) { <span class="text-[10px] text-white">✓</span> }
+                </span>
               </button>
               <span
                 class="min-w-0 flex-1 break-words text-sm"
@@ -36,8 +40,8 @@ import { ApiService } from '../../core/api.service';
                 [class.text-slate-500]="item.checked"
               >{{ item.text }}</span>
               <button
-                class="flex h-8 w-8 shrink-0 items-center justify-center text-slate-500 transition hover:text-red-400"
-                (click)="deleteItem(list, item.id)"
+                class="flex h-9 w-9 shrink-0 items-center justify-center text-slate-500 transition hover:text-red-400"
+                (click)="svc.deleteItem(list.id, item.id)"
                 aria-label="Usuń pozycję"
               >✕</button>
             </li>
@@ -58,10 +62,10 @@ import { ApiService } from '../../core/api.service';
         </form>
       </section>
     } @empty {
-      @if (!loading()) {
+      @if (!svc.loading()) {
         <section class="lo-card col-span-2 p-4">
           <p class="text-sm text-slate-500">
-            Brak przypiętych list. Utwórz je na stronie list lub w bazie.
+            Brak przypiętych list. Przypnij je na stronie list.
           </p>
         </section>
       }
@@ -69,64 +73,28 @@ import { ApiService } from '../../core/api.service';
   `,
 })
 export class PinnedListsComponent implements OnInit {
-  private api = inject(ApiService);
+  svc = inject(ListsService);
 
-  lists = signal<ListWithItems[]>([]);
-  loading = signal(false);
+  /** Up to two pinned checklists (notes have no items to tick off). */
+  lists = computed<ListWithItems[]>(() =>
+    this.svc.lists().filter((l) => l.pinned && l.type === 'list').slice(0, 2),
+  );
+
   newItem: Record<string, string> = {};
 
   ngOnInit(): void {
-    this.load();
-  }
-
-  load(): void {
-    this.loading.set(true);
-    this.api.get<ListWithItems[]>('/api/lists').subscribe({
-      next: (all) => this.lists.set(all.filter((l) => l.pinned).slice(0, 2)),
-      complete: () => this.loading.set(false),
-      error: () => this.loading.set(false),
-    });
+    // The dashboard already triggers a load; only fetch when landing here cold.
+    if (!this.svc.lists().length && !this.svc.loading()) this.svc.load();
   }
 
   checkedCount(list: ListWithItems): number {
     return list.items.filter((i) => i.checked).length;
   }
 
-  toggle(list: ListWithItems, item: ListWithItems['items'][number]): void {
-    const next = !item.checked;
-    this.api
-      .patch(`/api/lists/${list.id}/items/${item.id}`, { checked: next })
-      .subscribe(() => {
-        this.lists.update((all) =>
-          all.map((l) =>
-            l.id === list.id
-              ? { ...l, items: l.items.map((i) => (i.id === item.id ? { ...i, checked: next } : i)) }
-              : l,
-          ),
-        );
-      });
-  }
-
   addItem(list: ListWithItems): void {
     const text = (this.newItem[list.id] ?? '').trim();
     if (!text) return;
-    this.api
-      .post<ListWithItems['items'][number]>(`/api/lists/${list.id}/items`, { text })
-      .subscribe((item) => {
-        this.lists.update((all) =>
-          all.map((l) => (l.id === list.id ? { ...l, items: [...l.items, item] } : l)),
-        );
-        this.newItem[list.id] = '';
-      });
-  }
-
-  deleteItem(list: ListWithItems, itemId: string): void {
-    this.api.delete(`/api/lists/${list.id}/items/${itemId}`).subscribe(() => {
-      this.lists.update((all) =>
-        all.map((l) =>
-          l.id === list.id ? { ...l, items: l.items.filter((i) => i.id !== itemId) } : l,
-        ),
-      );
-    });
+    this.svc.addItem(list.id, text);
+    this.newItem[list.id] = '';
   }
 }

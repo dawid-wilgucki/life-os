@@ -3,8 +3,7 @@ import { FormsModule } from '@angular/forms';
 import type { HabitWithStreak } from '@life-os/shared-types';
 import { HabitsService } from './habits.service';
 import { PageBackgroundComponent } from '../../shared/page-background.component';
-
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+import { WEEKDAYS_PL } from '../../shared/weekdays';
 
 @Component({
   selector: 'app-habits',
@@ -13,13 +12,13 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   template: `
     <app-page-background theme="habits" />
     <div class="relative mx-auto max-w-2xl p-6">
-      <h1 class="text-2xl font-semibold">Habits</h1>
-      <p class="text-sm text-slate-400">Check in daily. Telegram nudge at 21:00 if unchecked.</p>
+      <h1 class="text-2xl font-semibold">Nawyki</h1>
+      <p class="text-sm text-slate-400">Odhaczaj codziennie. Przypomnienie na Telegramie o 21:00.</p>
 
       <form class="lo-card mt-4 flex flex-wrap gap-2 p-4" (ngSubmit)="add()">
         <input class="lo-input w-20 text-center" placeholder="🔥" [(ngModel)]="icon" name="icon" maxlength="2" />
-        <input class="lo-input flex-1" placeholder="New habit (e.g. Read 20 min)" [(ngModel)]="name" name="name" />
-        <button type="submit" class="lo-btn px-4">Add</button>
+        <input class="lo-input flex-1" placeholder="Nowy nawyk (np. Czytanie 20 min)" [(ngModel)]="name" name="name" />
+        <button type="submit" class="lo-btn px-4">Dodaj</button>
       </form>
 
       <div class="mt-6 space-y-3">
@@ -30,7 +29,7 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
               [class.bg-emerald-600]="h.checkedToday"
               [class.bg-surface-800]="!h.checkedToday"
               (click)="habits.toggle(h)"
-              [title]="h.checkedToday ? 'Checked today' : 'Mark done'"
+              [title]="h.checkedToday ? 'Odhaczone dziś' : 'Oznacz jako zrobione'"
             >
               {{ h.checkedToday ? '✓' : h.icon }}
             </button>
@@ -53,20 +52,21 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
                 <span class="ml-1 text-xs text-slate-500">{{ weekCount(h) }}/7</span>
               </div>
               <div class="mt-1 text-xs text-slate-500">
-                🔥 {{ h.currentStreak }} day streak · best {{ h.longestStreak }}
+                🔥 {{ h.currentStreak }} dni z rzędu · rekord {{ h.longestStreak }}
               </div>
             </div>
 
             <button
-              class="shrink-0 text-slate-500 transition hover:text-red-400"
-              title="Delete habit"
+              class="flex h-10 w-10 shrink-0 items-center justify-center text-slate-500 transition hover:text-red-400"
+              title="Usuń nawyk"
+              aria-label="Usuń nawyk"
               (click)="confirmRemove(h)"
             >
               🗑
             </button>
           </div>
         } @empty {
-          @if (!habits.loading()) { <p class="text-slate-500">No habits yet. Add one above.</p> }
+          @if (!habits.loading()) { <p class="text-slate-500">Brak nawyków. Dodaj pierwszy powyżej.</p> }
         }
       </div>
     </div>
@@ -74,7 +74,7 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 })
 export class HabitsComponent implements OnInit {
   habits = inject(HabitsService);
-  weekdays = WEEKDAYS;
+  weekdays = WEEKDAYS_PL;
   name = '';
   icon = '🔥';
 
@@ -94,7 +94,7 @@ export class HabitsComponent implements OnInit {
   }
 
   confirmRemove(h: HabitWithStreak): void {
-    if (confirm(`Delete habit "${h.name}"? This also removes its check-in history.`)) {
+    if (confirm(`Usunąć nawyk "${h.name}"? Skasuje to też historię odhaczeń.`)) {
       this.habits.remove(h.id);
     }
   }

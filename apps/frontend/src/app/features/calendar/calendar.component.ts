@@ -1,9 +1,10 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import type { CalendarEvent } from '@life-os/shared-types';
 import { CalendarService } from './calendar.service';
-
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+import { ToastService } from '../../core/toast.service';
+import { WEEKDAYS_PL } from '../../shared/weekdays';
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -12,19 +13,20 @@ function ymd(d: Date): string {
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, DatePipe],
   template: `
     <div class="p-6">
-      <div class="mb-4 flex items-center justify-between">
-        <h1 class="text-2xl font-semibold">{{ monthLabel() }}</h1>
-        <div class="flex items-center gap-2">
-          <button class="lo-btn-ghost px-3" (click)="shiftMonth(-1)">←</button>
-          <button class="lo-btn-ghost" (click)="goToday()">Today</button>
-          <button class="lo-btn-ghost px-3" (click)="shiftMonth(1)">→</button>
+      <div class="mb-4 flex items-center justify-between gap-2">
+        <h1 class="text-xl font-semibold capitalize sm:text-2xl">{{ monthLabel() }}</h1>
+        <div class="flex items-center gap-1">
+          <button class="lo-btn-ghost h-10 w-10" (click)="shiftMonth(-1)" aria-label="Poprzedni miesiąc">←</button>
+          <button class="lo-btn-ghost" (click)="goToday()">Dziś</button>
+          <button class="lo-btn-ghost h-10 w-10" (click)="shiftMonth(1)" aria-label="Następny miesiąc">→</button>
         </div>
       </div>
 
-      <div class="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-surface-800 bg-surface-800 text-sm">
+      <!-- Desktop: full month grid with event chips -->
+      <div class="hidden grid-cols-7 gap-px overflow-hidden rounded-xl border border-surface-800 bg-surface-800 text-sm lg:grid">
         @for (wd of weekdays; track wd) {
           <div class="bg-surface-900 px-2 py-2 text-center text-xs font-medium text-slate-400">{{ wd }}</div>
         }
@@ -51,25 +53,73 @@ function ymd(d: Date): string {
         }
       </div>
 
+      <!-- Mobile: compact mini-grid (dots) + agenda list -->
+      <div class="lg:hidden">
+        <div class="grid grid-cols-7 gap-1 rounded-xl border border-surface-800 bg-surface-950/60 p-2 text-center">
+          @for (wd of weekdays; track wd) {
+            <div class="py-1 text-[10px] text-slate-500">{{ wd }}</div>
+          }
+          @for (day of days(); track day.key) {
+            <button
+              class="relative flex h-9 items-center justify-center rounded text-xs"
+              [class.text-slate-600]="!day.inMonth"
+              [class.text-slate-200]="day.inMonth && !day.isToday"
+              [class.bg-indigo-600]="day.isToday"
+              [class.text-white]="day.isToday"
+              [class.ring-1]="selectedDay() && keyOf(selectedDay()!) === day.key"
+              [class.ring-indigo-400]="selectedDay() && keyOf(selectedDay()!) === day.key"
+              (click)="selectDay(day.date)"
+            >
+              {{ day.date.getDate() }}
+              @if (eventsFor(day.key).length && !day.isToday) {
+                <span class="absolute bottom-1 h-1 w-1 rounded-full bg-emerald-400"></span>
+              }
+            </button>
+          }
+        </div>
+
+        <!-- Agenda: this month's events, day by day -->
+        <ul class="mt-4 space-y-1">
+          @for (e of agenda(); track e.id) {
+            <li>
+              <button
+                class="flex w-full items-baseline gap-2 rounded-lg px-2 py-2 text-left text-sm transition hover:bg-surface-900"
+                (click)="selectDay(e.date)"
+              >
+                <span class="w-16 shrink-0 text-xs text-slate-400">{{ e.date | date: 'EEE d MMM' }}</span>
+                <span class="w-14 shrink-0 text-xs text-slate-500">{{ e.allDay ? 'cały dzień' : timeLabel(e) }}</span>
+                <span class="min-w-0 flex-1 truncate text-slate-200">{{ e.summary }}</span>
+              </button>
+            </li>
+          } @empty {
+            <li class="px-2 py-3 text-sm text-slate-500">Brak wydarzeń w tym miesiącu.</li>
+          }
+        </ul>
+      </div>
+
       <!-- Day panel -->
       @if (selectedDay(); as sel) {
         <div class="lo-card mt-4 p-4">
           <div class="mb-3 flex items-center justify-between">
-            <h2 class="font-medium">{{ sel.toDateString() }}</h2>
-            <button class="lo-btn-ghost px-2" (click)="selectedDay.set(null)">✕</button>
+            <h2 class="font-medium capitalize">{{ sel | date: 'EEEE, d MMMM' }}</h2>
+            <button class="lo-btn-ghost h-10 w-10" (click)="selectedDay.set(null)" aria-label="Zamknij">✕</button>
           </div>
 
           <ul class="mb-4 space-y-1">
             @for (ev of eventsFor(keyOf(sel)); track ev.id) {
-              <li class="group flex items-center justify-between rounded-lg px-2 py-1 hover:bg-surface-800">
-                <span class="text-sm">
-                  <span class="text-slate-400">{{ ev.allDay ? 'All day' : timeLabel(ev) }}</span>
+              <li class="flex items-center justify-between gap-2 rounded-lg px-2 py-1 hover:bg-surface-800">
+                <span class="min-w-0 flex-1 text-sm">
+                  <span class="text-slate-400">{{ ev.allDay ? 'Cały dzień' : timeLabel(ev) }}</span>
                   — {{ ev.summary }}
                 </span>
-                <button class="invisible text-slate-500 hover:text-red-400 group-hover:visible" (click)="remove(ev)">✕</button>
+                <button
+                  class="flex h-9 w-9 shrink-0 items-center justify-center text-slate-500 transition hover:text-red-400"
+                  (click)="remove(ev)"
+                  aria-label="Usuń wydarzenie"
+                >✕</button>
               </li>
             } @empty {
-              <li class="text-sm text-slate-500">No events.</li>
+              <li class="text-sm text-slate-500">Brak wydarzeń.</li>
             }
           </ul>
 
@@ -88,8 +138,8 @@ function ymd(d: Date): string {
               </div>
             }
 
-            <label class="flex items-center gap-2 text-sm text-slate-300">
-              <input type="checkbox" class="accent-indigo-500" [(ngModel)]="allDay" name="allDay" /> All day
+            <label class="flex items-center gap-2 py-1 text-sm text-slate-300">
+              <input type="checkbox" class="h-5 w-5 accent-indigo-500" [(ngModel)]="allDay" name="allDay" /> Cały dzień
             </label>
             @if (!allDay) {
               <div class="flex items-center gap-2">
@@ -107,7 +157,8 @@ function ymd(d: Date): string {
 })
 export class CalendarComponent implements OnInit {
   private cal = inject(CalendarService);
-  weekdays = WEEKDAYS;
+  private toast = inject(ToastService);
+  weekdays = WEEKDAYS_PL;
 
   anchor = signal(new Date());
   selectedDay = signal<Date | null>(null);
@@ -122,7 +173,7 @@ export class CalendarComponent implements OnInit {
   owners = this.cal.owners;
 
   monthLabel = computed(() =>
-    this.anchor().toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+    this.anchor().toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' }),
   );
 
   /** 42-cell month grid (Monday-first). */
@@ -146,6 +197,16 @@ export class CalendarComponent implements OnInit {
       (map[key] ??= []).push(ev);
     }
     return map;
+  });
+
+  /** Mobile agenda: the anchor month's events sorted chronologically, with the day resolved. */
+  agenda = computed<(CalendarEvent & { date: Date })[]>(() => {
+    const month = this.anchor().getMonth();
+    return this.cal
+      .events()
+      .map((e) => ({ ...e, date: e.allDay ? new Date(e.start.slice(0, 10) + 'T00:00') : new Date(e.start) }))
+      .filter((e) => e.date.getMonth() === month)
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
   });
 
   ngOnInit(): void {
@@ -183,7 +244,7 @@ export class CalendarComponent implements OnInit {
   }
 
   timeLabel(ev: CalendarEvent): string {
-    return new Date(ev.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return new Date(ev.start).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
   }
 
   add(): void {
@@ -205,13 +266,19 @@ export class CalendarComponent implements OnInit {
     const fullInput = this.calendarId && this.calendarId !== 'primary'
       ? { ...input, calendarId: this.calendarId }
       : input;
-    this.cal.create(fullInput).subscribe(() => {
-      this.title = '';
-      this.reload();
+    this.cal.create(fullInput).subscribe({
+      next: () => {
+        this.title = '';
+        this.reload();
+      },
+      error: () => this.toast.error('Nie udało się dodać wydarzenia.'),
     });
   }
 
   remove(ev: CalendarEvent): void {
-    this.cal.remove(ev.id).subscribe(() => this.reload());
+    this.cal.remove(ev.id).subscribe({
+      next: () => this.reload(),
+      error: () => this.toast.error('Nie udało się usunąć wydarzenia.'),
+    });
   }
 }
