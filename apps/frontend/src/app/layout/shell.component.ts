@@ -241,6 +241,7 @@ export class ShellComponent {
     { path: 'trips', label: 'Podróże', icon: '🚆' },
     { path: 'maintenance', label: 'Konserwacja', icon: '🔧' },
     { path: 'habits', label: 'Nawyki', icon: '🔥' },
+    { path: 'devices', label: 'Urządzenia', icon: '🔌' },
     { path: 'subscriptions', label: 'Subskrypcje', icon: '💳' },
     { path: 'job-search', label: 'Oferty pracy', icon: '💼' },
     { path: 'chat', label: 'Asystent AI', icon: '✨' },

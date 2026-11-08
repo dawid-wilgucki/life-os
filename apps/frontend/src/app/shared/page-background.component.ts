@@ -10,7 +10,8 @@ export type BgTheme =
   | 'inbox'
   | 'subscriptions'
   | 'chat'
-  | 'job-search';
+  | 'job-search'
+  | 'devices';
 
 /** Subtle per-page accent (active states / flat buttons). Fonts stay uniform. */
 const ACCENTS: Record<BgTheme, string> = {
@@ -24,6 +25,7 @@ const ACCENTS: Record<BgTheme, string> = {
   subscriptions: '#3d8c5e',
   chat: '#5b68d4',
   'job-search': '#3b82f6',
+  devices: '#2a78d6',
 };
 
 /**

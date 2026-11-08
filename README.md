@@ -1,7 +1,8 @@
 # Life.OS
 
 Personal life-management system for a single user. Tasks, calendar, a GTD
-inbox, investments, wardrobe, trips, home maintenance and habit tracking —
+inbox, investments, wardrobe, trips, home maintenance, habit tracking and
+Shelly smart-home devices (state, energy charts, Telegram alerts) —
 unified on Cloudflare's edge.
 
 > Private, single-owner tool. Not multi-tenant. Google Calendar & Google Tasks
@@ -28,10 +29,11 @@ life-os/
 │       ├── src/
 │       │   ├── routes/  # auth, tasks, calendar, inbox, investments,
 │       │   │            #   wardrobe, trips, maintenance, habits, telegram
-│       │   ├── cron/    # scheduled maintenance + habit reminders
+│       │   ├── cron/    # reminders, job-search fetch, Shelly polling
+│       │   ├── shelly/  # Shelly: normalisation, rules, alerts, backfill
 │       │   ├── lib/     # google, supabase, jwt, telegram
 │       │   └── middleware/
-│       └── migrations/  # Supabase SQL (0001..0007)
+│       └── migrations/  # Supabase SQL (0001..0016)
 └── packages/
     └── shared-types/    # shared TypeScript interfaces (frontend + api)
 ```
@@ -73,6 +75,9 @@ cp apps/api/.dev.vars.example apps/api/.dev.vars
 | `JWT_SECRET`                | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `TELEGRAM_BOT_TOKEN`        | from @BotFather                                            |
 | `TELEGRAM_CHAT_ID`          | your numeric chat id                                       |
+| `SHELLY_AUTH_KEY`           | Shelly app → User settings → Authorization cloud key       |
+| `SHELLY_SERVER_URI`         | server shown next to the key, e.g. `https://shelly-270-eu.shelly.cloud` |
+| `SHELLY_WEBHOOK_SECRET`     | optional, random string; enables `/hooks/shelly/<secret>`  |
 
 Non-secret vars (`FRONTEND_ORIGIN`) live in `apps/api/wrangler.toml`.
 
@@ -90,7 +95,7 @@ Non-secret vars (`FRONTEND_ORIGIN`) live in `apps/api/wrangler.toml`.
 
 ## 4. Database migrations
 
-Apply the SQL in `apps/api/migrations/` in order (0001 → 0007) via the Supabase
+Apply the SQL in `apps/api/migrations/` in order (0001 → 0016) via the Supabase
 SQL editor or CLI. See [`apps/api/migrations/README.md`](apps/api/migrations/README.md).
 RLS is enabled on every table with no policies, so only the Worker's
 service-role key can read/write.
@@ -135,8 +140,14 @@ npx wrangler secret put TELEGRAM_CHAT_ID
 npm run deploy:api
 ```
 
-The cron triggers in `wrangler.toml` (`0 6`, `0 19`, `0 20` UTC) drive the
-maintenance and habit reminders — no extra setup.
+The cron triggers in `wrangler.toml` (UTC) drive the scheduled work — no extra
+setup. Workers Free allows 5 per account; 4 are used:
+
+| Cron           | Work                                                            |
+| -------------- | --------------------------------------------------------------- |
+| `0 6`, `0 7`   | maintenance reminders + job-search fetch at 08:00 Warsaw (DST)  |
+| `0 8`          | subscription renewal reminders                                  |
+| `*/15 * * * *` | Shelly devices: snapshot, alerts, cloud-history backfill        |
 
 ### Frontend (apps/frontend → Cloudflare Pages)
 
@@ -155,6 +166,47 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<y
 ```
 
 Then send `/inbox buy milk` to the bot — it lands in your Life.OS inbox.
+
+### Shelly devices (tab „Urządzenia”)
+
+1. Apply migrations `0015_shelly.sql` and `0016_shelly_functions.sql`. They
+   seed the pump (`e4b0637ece04`, with a yearly break 01.10–30.04) and the
+   garden lights (`d885ac0681e8`, expected on from sunset to sunrise).
+2. Set `SHELLY_AUTH_KEY` and `SHELLY_SERVER_URI` (`wrangler secret put …`).
+3. Add further devices in the tab („+ Dodaj”, device ID from the Shelly app).
+   Model, generation and power metering are detected from the cloud.
+
+How it works:
+
+- Every 15 min one `POST /v2/devices/api/get` call (≤10 devices) stores a
+  sample per online device in `shelly_samples`. Energy charts come from
+  increments of the device's cumulative counter (`aenergy.total`), so kWh are
+  exact regardless of the polling interval; aggregation runs in SQL
+  (`shelly_energy_series`, `shelly_activity_series`).
+- History before the first own sample is backfilled from the (undocumented)
+  `/v2/statistics/power-consumption` endpoint, one month of daily values per
+  call, up to 3 years back, a couple of calls per poll.
+- Alerts (Telegram, one per episode + „back to normal”): device offline longer
+  than its threshold, Shelly Cloud failing 4 polls in a row (or rejecting the
+  key), errors reported by the device, mains voltage outside 207–253 V, lights
+  on in daylight / off after dusk, scheduled pump run missing, run longer than
+  the limit, any activity during a break period. Quiet hours 22:00–07:00:
+  alerts are recorded and sent at 07:00 if still active. Thresholds live in
+  `shelly_devices` (`offline_after_hours`, `schedule`, `alerts` JSON) and
+  `shelly_settings` (quiet hours, API failure threshold).
+- Break periods (yearly or one-off, editable in the tab) switch monitoring off
+  for a device, except the optional „works during a break” alert.
+
+Optional webhooks (Gen2+ devices, exact start/stop and energy per run): set
+`SHELLY_WEBHOOK_SECRET`, then on the device's local web UI → Actions add, for
+`switch.on` and `switch.off`:
+
+```
+https://<your-worker>.workers.dev/hooks/shelly/<SECRET>?id=<device-id>&ev=on&e=${status["switch:0"].aenergy.total}
+https://<your-worker>.workers.dev/hooks/shelly/<SECRET>?id=<device-id>&ev=off&e=${status["switch:0"].aenergy.total}
+```
+
+Configuration is one-off; afterwards the device calls the Worker directly.
 
 ---
 
@@ -187,6 +239,12 @@ GET    /api/wardrobe · GET /api/wardrobe/photo/:name
 GET/POST /api/trips · POST /api/trips/import-email
 GET/POST /api/maintenance · PATCH /api/maintenance/:id
 GET/POST /api/habits · POST/DELETE /api/habits/:id/check
+GET    /api/shelly/overview · POST /api/shelly/refresh
+GET    /api/shelly/devices/:id/series?range=24h|30d|12m
+POST   /api/shelly/devices · PATCH/DELETE /api/shelly/devices/:id
+POST   /api/shelly/devices/:id/periods · DELETE /api/shelly/periods/:id
+GET    /hooks/shelly/:secret   (device webhooks, secret in path)
 ```
 
-All `/api/*` routes (except the two webhooks) require `Authorization: Bearer <jwt>`.
+All `/api/*` routes (except the two webhooks) require `Authorization: Bearer <jwt>`;
+`/hooks/shelly/*` is authorised by the secret in the path.

@@ -27,6 +27,11 @@ export interface Env {
   SOLARMAN_APP_SECRET: string;
   SOLARMAN_EMAIL: string;
   SOLARMAN_PASSWORD_SHA256: string;
+  // Shelly Cloud Control API (personal account; "Authorization cloud key" + server).
+  SHELLY_AUTH_KEY?: string;
+  SHELLY_SERVER_URI?: string;
+  /** Optional: secret path segment for /hooks/shelly/<secret> (device webhooks). */
+  SHELLY_WEBHOOK_SECRET?: string;
 }
 
 /** Per-request values set by middleware and read by route handlers. */

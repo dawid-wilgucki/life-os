@@ -13,7 +13,7 @@ import { WEEKDAYS_PL } from '../../shared/weekdays';
     <app-page-background theme="habits" />
     <div class="relative mx-auto max-w-2xl p-6">
       <h1 class="text-2xl font-semibold">Nawyki</h1>
-      <p class="text-sm text-slate-400">Odhaczaj codziennie. Przypomnienie na Telegramie o 21:00.</p>
+      <p class="text-sm text-slate-400">Odhaczaj codziennie.</p>
 
       <form class="lo-card mt-4 flex flex-wrap gap-2 p-4" (ngSubmit)="add()">
         <input class="lo-input w-20 text-center" placeholder="🔥" [(ngModel)]="icon" name="icon" maxlength="2" />

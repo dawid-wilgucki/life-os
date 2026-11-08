@@ -19,3 +19,8 @@ SOLARMAN_APP_SECRET=your-solarman-app-secret
 SOLARMAN_EMAIL=_solarman_email
 SOLARMAN_PASSWORD_SHA256=your-sha256-password
 
+# Shelly Cloud Control API (Shelly app → User settings → Authorization cloud key)
+SHELLY_AUTH_KEY=your-shelly-auth-key
+SHELLY_SERVER_URI=https://shelly-XX-eu.shelly.cloud
+# Optional: secret path segment for device webhooks (/hooks/shelly/<secret>)
+SHELLY_WEBHOOK_SECRET=long-random-string
