@@ -1,8 +1,8 @@
 import type { Env } from '../types';
 import { remindMaintenance } from './maintenance';
-import { nudgeHabits } from './habits';
 import { remindSubscriptions } from './subscriptions';
 import { cronFetchJobOffers } from './job-search';
+import { pollShelly } from './shelly';
 
 /** Current hour (0-23) in Europe/Warsaw, DST-aware. */
 function warsawHour(): number {
@@ -20,8 +20,8 @@ function warsawHour(): number {
  *   "0 6 * * *"        -> morning maintenance reminders
  *                         + job-search fetch when Warsaw hour = 8 (CEST / summer)
  *   "0 7 * * *"        -> job-search fetch when Warsaw hour = 8 (CET / winter)
- *   "0 19/20 * * *"    -> habit nudge, gated to 21:00 Europe/Warsaw (one fires
- *                         per day: 19:00 UTC in summer, 20:00 UTC in winter)
+ *   "0 8 * * *"        -> subscription renewal reminders
+ *   every 15 min       -> Shelly devices: snapshot, alerts, cloud-history backfill
  */
 export async function handleScheduled(cron: string, env: Env): Promise<void> {
   if (cron === '0 6 * * *') {
@@ -37,7 +37,7 @@ export async function handleScheduled(cron: string, env: Env): Promise<void> {
     await remindSubscriptions(env);
     return;
   }
-  if (cron === '0 19 * * *' || cron === '0 20 * * *') {
-    if (warsawHour() === 21) await nudgeHabits(env);
+  if (cron === '*/15 * * * *') {
+    await pollShelly(env);
   }
 }

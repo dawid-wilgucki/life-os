@@ -16,12 +16,17 @@ FRONTEND_ORIGIN = "https://life-os-5qd.pages.dev"
 binding = "TOKENS"
 id = "4a74d2527203487fbca725ce83b0a159"
 
-# Daily reminders. Cloudflare crons are UTC; the handler computes the real
-# Europe/Warsaw hour to honour the 21:00 habit nudge across DST.
+# Cron triggers (UTC; the handler gates by Europe/Warsaw hour where needed).
+# Free plan: max 5 cron triggers per account — 4 used, 1 spare.
+#   0 6 / 0 7 -> maintenance reminders + job-search fetch (08:00 Warsaw, DST-aware)
+#   0 8       -> subscription reminders
+#   */15      -> Shelly devices (snapshot, alerts, cloud-history backfill)
 # Secrets not listed here are set via `wrangler secret put` and locally in .dev.vars.
 # GEMINI_API_KEY — Google AI Studio key (https://aistudio.google.com/app/apikey)
 #   Required for /api/meal-plan and /api/wardrobe/suggestion endpoints.
 #   To set in production: npx wrangler secret put GEMINI_API_KEY
+# SHELLY_AUTH_KEY / SHELLY_SERVER_URI — Shelly app → User settings → Authorization cloud key.
+# SHELLY_WEBHOOK_SECRET (optional) — random string; enables /hooks/shelly/<secret>.
 
 [triggers]
-crons = ["0 6 * * *", "0 7 * * *", "0 8 * * *", "0 19 * * *", "0 20 * * *"]
+crons = ["0 6 * * *", "0 7 * * *", "0 8 * * *", "*/15 * * * *"]

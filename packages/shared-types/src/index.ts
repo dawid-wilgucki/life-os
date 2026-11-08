@@ -567,3 +567,218 @@ export interface SolarTokenRefreshResult {
   success: boolean;
   expiresIn: number;
 }
+
+// ============================================================================
+// Shelly (urządzenia smart home przez Shelly Cloud)
+// ============================================================================
+
+/** Co oznacza „pracuje”: stan wyjścia albo pobór mocy (np. bojler w gniazdku). */
+export type ShellyActivitySignal = 'output' | 'power';
+
+/** Harmonogram oczekiwanej pracy (ISO dni tygodnia: 1 = pn … 7 = nd). */
+export type ShellySchedule =
+  | {
+      type: 'runs';
+      days: number[];
+      /** Punkt odniesienia startu: wschód / zachód słońca albo stała godzina `time` (HH:MM). */
+      at: 'sunrise' | 'sunset' | 'time';
+      time?: string;
+      offset_min?: number;
+      duration_min: number;
+      tolerance_min?: number;
+    }
+  | { type: 'night'; tolerance_min?: number };
+
+/** Nadpisania progów alertów (shelly_devices.alerts). */
+export interface ShellyAlertSettings {
+  voltage?: boolean;
+  voltage_min?: number;
+  voltage_max?: number;
+  device_errors?: boolean;
+  max_run_min?: number;
+  min_run_wh?: number;
+}
+
+/** Znormalizowany odczyt jednego urządzenia (Gen1 / Gen2+). */
+export interface ShellyReading {
+  output: boolean | null;
+  apowerW: number | null;
+  voltageV: number | null;
+  currentA: number | null;
+  freqHz: number | null;
+  /** Narastający licznik energii, Wh. */
+  energyTotalWh: number | null;
+  /** Temperatura modułu Shelly (nie urządzenia odbiorczego). */
+  tempC: number | null;
+  rssi: number | null;
+  uptimeS: number | null;
+  /** Błędy zgłaszane przez urządzenie (overpower, overtemp, …). */
+  errors: string[];
+  /** Co ostatnio przełączyło wyjście (init, loopback = harmonogram, button, cloud, …). */
+  source: string | null;
+  timerStartedAt: number | null;
+  timerDurationS: number | null;
+}
+
+export interface ShellyPeriod {
+  id: string;
+  deviceId: string;
+  /** true: powtarza się co roku (startMd/endMd), false: jednorazowo (startsOn/endsOn). */
+  recurring: boolean;
+  startMd?: string;
+  endMd?: string;
+  startsOn?: IsoDate;
+  endsOn?: IsoDate;
+  alertOnActivity: boolean;
+  note?: string;
+}
+
+export interface ShellyRun {
+  start: IsoDateTime;
+  end: IsoDateTime;
+  energyWh: number | null;
+  avgW: number | null;
+  /** true gdy początek znany dokładnie (webhook / timer urządzenia). */
+  exact: boolean;
+}
+
+export interface ShellyDeviceState {
+  online: boolean;
+  output: boolean | null;
+  active: boolean;
+  reading: ShellyReading | null;
+  lastReportAt?: IsoDateTime;
+  lastSeenOnlineAt?: IsoDateTime;
+  offlineSince?: IsoDateTime;
+  activeSince?: IsoDateTime;
+  lastActiveAt?: IsoDateTime;
+  lastRun?: ShellyRun;
+  fwVersion?: string;
+  fwUpdate?: string;
+}
+
+export interface ShellyScheduleInfo {
+  description: string;
+  nextRunAt?: IsoDateTime;
+  sunrise?: IsoDateTime;
+  sunset?: IsoDateTime;
+}
+
+export interface ShellyDevice {
+  id: string;
+  name: string;
+  icon: string;
+  modelCode?: string;
+  gen?: number;
+  channel: number;
+  hasPowerMeter: boolean;
+  activitySignal: ShellyActivitySignal;
+  activePowerMinW: number;
+  nominalPowerW?: number;
+  offlineAfterHours: number;
+  schedule?: ShellySchedule;
+  alerts: ShellyAlertSettings;
+  enabled: boolean;
+  sortOrder: number;
+  periods: ShellyPeriod[];
+  state: ShellyDeviceState | null;
+  /** Trwający okres przerwy (alerty wyłączone). */
+  activeBreak: ShellyPeriod | null;
+  /** Ostatni dzień trwającej przerwy. */
+  breakUntil?: IsoDate;
+  scheduleInfo?: ShellyScheduleInfo;
+}
+
+export type ShellyAlertRule =
+  | 'api'
+  | 'offline'
+  | 'device_error'
+  | 'voltage'
+  | 'break_activity'
+  | 'schedule'
+  | 'missed_run'
+  | 'run_too_long';
+
+export interface ShellyAlert {
+  id: string;
+  deviceId?: string;
+  deviceName?: string;
+  rule: ShellyAlertRule;
+  severity: 'critical' | 'warning';
+  message: string;
+  resolveMessage?: string;
+  openedAt: IsoDateTime;
+  resolvedAt?: IsoDateTime;
+  resolution?: 'normal' | 'break' | 'disabled';
+  notifiedOpenAt?: IsoDateTime;
+}
+
+export interface ShellyHealth {
+  configured: boolean;
+  lastSuccessAt?: IsoDateTime;
+  lastAttemptAt?: IsoDateTime;
+  consecutiveFailures: number;
+  lastError?: string;
+  quietFrom: string;
+  quietTo: string;
+}
+
+export interface ShellyOverview {
+  devices: ShellyDevice[];
+  openAlerts: ShellyAlert[];
+  recentAlerts: ShellyAlert[];
+  health: ShellyHealth;
+}
+
+export type ShellyRange = '24h' | '30d' | '12m';
+
+export interface ShellySeriesPoint {
+  start: IsoDateTime;
+  /** Zużycie w kubełku (Wh); null = brak danych. */
+  wh: number | null;
+  source: 'own' | 'cloud' | 'mixed' | 'estimate' | null;
+  /** Czas pracy w kubełku (h); null = brak danych. */
+  activeHours: number | null;
+  inBreak: boolean;
+}
+
+export interface ShellySeries {
+  deviceId: string;
+  range: ShellyRange;
+  bucket: 'hour' | 'day' | 'month';
+  points: ShellySeriesPoint[];
+  totalWh: number | null;
+  totalActiveHours: number | null;
+  /** true gdy wh to szacunek (moc nominalna × czas pracy). */
+  estimated: boolean;
+}
+
+export interface CreateShellyDeviceInput {
+  id: string;
+  name: string;
+  icon?: string;
+  hasPowerMeter?: boolean;
+  activitySignal?: ShellyActivitySignal;
+  nominalPowerW?: number | null;
+}
+
+export interface UpdateShellyDeviceInput {
+  name?: string;
+  icon?: string;
+  hasPowerMeter?: boolean;
+  activitySignal?: ShellyActivitySignal;
+  activePowerMinW?: number;
+  nominalPowerW?: number | null;
+  offlineAfterHours?: number;
+  enabled?: boolean;
+}
+
+export interface CreateShellyPeriodInput {
+  recurring: boolean;
+  startMd?: string;
+  endMd?: string;
+  startsOn?: IsoDate;
+  endsOn?: IsoDate;
+  alertOnActivity?: boolean;
+  note?: string;
+}

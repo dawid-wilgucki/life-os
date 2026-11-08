@@ -20,6 +20,8 @@ import { dayPlanRouter } from './routes/day-plan';
 import { chatRouter } from './routes/chat';
 import { profileRouter } from './routes/profile';
 import { jobSearchRouter } from './routes/job-search';
+import { shellyRouter } from './routes/shelly';
+import { shellyHooksRouter } from './routes/shelly-hooks';
 import { handleScheduled } from './cron';
 
 const app = new Hono<AppContext>();
@@ -62,6 +64,10 @@ app.route('/api/day-plan', dayPlanRouter);
 app.route('/api/chat', chatRouter);
 app.route('/api/profile', profileRouter);
 app.route('/api/job-search', jobSearchRouter);
+app.route('/api/shelly', shellyRouter);
+
+// --- Public device webhooks (secret in path, no JWT) ---
+app.route('/hooks/shelly', shellyHooksRouter);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 app.onError((err, c) => {
